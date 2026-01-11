@@ -1,12 +1,24 @@
 <template>
 	<scroll-view class="page" scroll-y="true">
+		
 		<view class="card">
 			<text class="label-title">选择供应商</text>
-			<view class="row-between">
-				<picker class="flex-1" mode="selector" :range="contactNames" @change="onContactChange"><view class="picker-box"><text class="picker-text">{{ currentContactName }}</text><text class="picker-arrow">▼</text></view></picker>
-				<button class="btn-mini" @click="openAddModal">+</button>
+			<view class="supplier-row">
+				<view class="picker-wrapper">
+					<picker mode="selector" :range="contactNames" @change="onContactChange" class="picker-full">
+						<view class="picker-box">
+							<text class="picker-text">{{ currentContactName }}</text>
+							<text class="picker-arrow">▼</text>
+						</view>
+					</picker>
+				</view>
+				
+				<view class="btn-add-wrapper" @click="openAddModal">
+					<text class="btn-add-icon">+</text>
+				</view>
 			</view>
 		</view>
+
 		<view class="section">
 			<text class="section-label">商品分类</text>
 			<view class="grid-4">
@@ -24,66 +36,119 @@
 		<button class="btn-submit" :loading="loading" @click="submit">确认入库</button>
 		<view class="bottom-placeholder"></view>
 	</scroll-view>
-	<view v-if="showAddModal" class="modal-mask" style="z-index: 9999;"><view class="modal-box"><text class="modal-title">新建供应商</text><input class="input-modal" v-model="newContact['name']" placeholder="姓名 (必填)" /><input class="input-modal" v-model="newContact['phone']" placeholder="电话" /><input class="input-modal" v-model="newContact['address']" placeholder="地址/档口" /><view class="modal-btns"><button class="btn-cancel" @click="showAddModal = false">取消</button><button class="btn-confirm" @click="addContact">保存</button></view></view></view>
-	<view v-if="showSuccess" class="modal-mask" style="z-index: 9999;"><view class="modal-box"><text class="success-icon">✅</text><text class="modal-title">入库成功</text><view class="code-box"><text class="code-label">系统唯一编码</text><text class="code-text">{{ result['zencode'] }}</text></view><view v-if="!result['has_price']" class="warn-box"><text class="warn-title">⚠️ 价格未完善</text><text class="warn-desc">您未填写同行底价或零售价，请记得在库存清单中补充维护！</text></view><button class="btn-primary" @click="resetForm">继续下一单</button></view></view>
+
+	<view v-if="showAddModal" class="modal-mask" style="z-index: 9999;">
+		<view class="modal-box">
+			<text class="modal-title">新建供应商</text>
+			<input class="input-modal" v-model="newContact['name']" placeholder="姓名 (必填)" />
+			<input class="input-modal" v-model="newContact['phone']" placeholder="电话" />
+			<input class="input-modal" v-model="newContact['address']" placeholder="地址/档口" />
+			<view class="modal-btns">
+				<button class="btn-cancel" @click="showAddModal = false">取消</button>
+				<button class="btn-confirm" @click="addContact">保存</button>
+			</view>
+		</view>
+	</view>
+	
+	<view v-if="showSuccess" class="modal-mask" style="z-index: 9999;">
+		<view class="modal-box">
+			<text class="success-icon">✅</text>
+			<text class="modal-title">入库成功</text>
+			<view class="code-box"><text class="code-label">系统唯一编码</text><text class="code-text">{{ result['zencode'] }}</text></view>
+			<view v-if="!result['has_price']" class="warn-box"><text class="warn-title">⚠️ 价格未完善</text><text class="warn-desc">您未填写同行底价或零售价，请记得在库存清单中补充维护！</text></view>
+			<button class="btn-primary" @click="resetForm">继续下一单</button>
+		</view>
+	</view>
 </template>
+
 <script>
 	import { request } from '@/common/api.js';
 	const UPLOAD_URL = 'https://erp.corezen.site/api/products/';
+
 	export default {
 		data() {
-			return { loading: false, types: [{ key: 'ZJ', name: '整机' }, { key: 'SJ', name: '散件' }, { key: 'XS', name: '显示器' }, { key: 'ZX', name: '杂项' }], form: { category: 'ZJ', supplier_id: '', name: '', cpu: '', gpu: '', ram: '', disk: '', note: '', cost_price: '', paid_amount: '', account_id: '', peer_price: '', retail_price: '' } as any, contacts: [], accounts: [], contactNames: [], accountNames: [], currentContactName: '请选择...', currentAccountName: '选择支付账户', previewUrl: '', tempFilePath: '', showSuccess: false, showAddModal: false, result: { zencode: '', has_price: true } as any, newContact: { name: '', phone: '', address: '' } as any }
+			return {
+				loading: false, types: [{ key: 'ZJ', name: '整机' }, { key: 'SJ', name: '散件' }, { key: 'XS', name: '显示器' }, { key: 'ZX', name: '杂项' }],
+				form: { category: 'ZJ', supplier_id: '', name: '', cpu: '', gpu: '', ram: '', disk: '', note: '', cost_price: '', paid_amount: '', account_id: '', peer_price: '', retail_price: '' } as any,
+				contacts: [], accounts: [], 
+				// ⚠️ 初始值设为 加载中，防止空弹窗
+				contactNames: ['加载中...'], 
+				accountNames: [], currentContactName: '请选择...', currentAccountName: '选择支付账户',
+				previewUrl: '', tempFilePath: '', showSuccess: false, showAddModal: false, result: { zencode: '', has_price: true } as any, newContact: { name: '', phone: '', address: '' } as any
+			}
 		},
-		computed: { debtAmount(): number { let cost = parseFloat(this.form['cost_price'] || '0'); let paid = parseFloat(this.form['paid_amount'] || '0'); return cost - paid; }, showAccountSelect(): boolean { let paid = parseFloat(this.form['paid_amount'] || '0'); return paid > 0; } },
+		computed: {
+			debtAmount(): number { let cost = parseFloat(this.form['cost_price'] || '0'); let paid = parseFloat(this.form['paid_amount'] || '0'); return cost - paid; },
+			showAccountSelect(): boolean { let paid = parseFloat(this.form['paid_amount'] || '0'); return paid > 0; }
+		},
 		onLoad() { this.loadData(); },
 		methods: {
-			async loadData() { try { const resC = await request({ url: '/api/contacts/' }); const resA = await request({ url: '/api/analysis/accounting/' }); if (resC) { let list = (resC as any)['results'] || resC; this.contacts = list as any[]; this.contactNames = ['🛒 散客 (无供应商)']; this.contactNames.push(...this.contacts.map((c: any): string => c['name'])); } if (resA) { this.accounts = (resA as any)['accounts']; this.accountNames = this.accounts.map((a: any): string => a['name']); if (this.accounts.length > 0) { this.form['account_id'] = this.accounts[0]['id']; this.currentAccountName = this.accounts[0]['name']; } } } catch (e) {} },
+			async loadData() {
+				try {
+					const resC = await request({ url: '/api/contacts/?page_size=1000' });
+					const resA = await request({ url: '/api/analysis/accounting/' });
+					if (resC) {
+						let list = (resC as any)['results'] || resC;
+						this.contacts = list as any[];
+						this.contactNames = ['🛒 散客 (无供应商)'];
+						this.contactNames.push(...this.contacts.map((c: any): string => c['name']));
+					}
+					if (resA) {
+						this.accounts = (resA as any)['accounts'];
+						this.accountNames = this.accounts.map((a: any): string => a['name']);
+						if (this.accounts.length > 0) { this.form['account_id'] = this.accounts[0]['id']; this.currentAccountName = this.accounts[0]['name']; }
+					}
+				} catch (e) {}
+			},
 			onContactChange(e: any) { let index = e.detail.value as number; if (index == 0) { this.form['supplier_id'] = '0'; this.currentContactName = '🛒 散客'; } else { let contact = this.contacts[index - 1]; this.form['supplier_id'] = contact['id']; this.currentContactName = contact['name']; } },
 			onAccountChange(e: any) { let index = e.detail.value as number; let acc = this.accounts[index]; this.form['account_id'] = acc['id']; this.currentAccountName = acc['name']; },
 			chooseImage() { uni.chooseImage({ count: 1, sizeType: ['compressed'], success: (res) => { this.tempFilePath = res.tempFilePaths[0]; this.previewUrl = res.tempFilePaths[0]; } }); },
 			openAddModal() { this.showAddModal = true; },
-			async addContact() { if (!this.newContact['name']) return uni.showToast({title:'姓名必填', icon:'none'}); try { const res = await request({ url: '/api/contacts/', method: 'POST', data: this.newContact }); if (res) { uni.showToast({title:'添加成功'}); await this.loadData(); let newId = (res as any)['id']; let newName = (res as any)['name']; this.form['supplier_id'] = newId; this.currentContactName = newName; this.showAddModal = false; this.newContact = { name:'', phone:'', address:'' }; } } catch (e) {} },
+			async addContact() {
+				if (!this.newContact['name']) return uni.showToast({title:'姓名必填', icon:'none'});
+				try {
+					const res = await request({ url: '/api/contacts/', method: 'POST', data: this.newContact });
+					uni.showToast({title:'添加成功'});
+					this.showAddModal = false;
+					this.newContact = { name:'', phone:'', address:'' };
+					await this.loadData(); // 刷新列表
+					// 自动选中
+					if (res && (res as any)['id']) {
+						this.form['supplier_id'] = (res as any)['id'];
+						this.currentContactName = (res as any)['name'];
+					}
+				} catch (e) {}
+			},
 			async submit() { if (!this.form['supplier_id']) return uni.showToast({title:'必须选供应商', icon:'none'}); if (!this.form['cost_price']) return uni.showToast({title:'请填入库成本', icon:'none'}); if (this.showAccountSelect && !this.form['account_id']) return uni.showToast({title:'实付必须选账户', icon:'none'}); if (this.form['category'] != 'ZJ' && !this.form['name']) return uni.showToast({title:'请填写名称', icon:'none'}); this.loading = true; let formData = JSON.parse(JSON.stringify(this.form)); if (this.tempFilePath) { const sessionId = uni.getStorageSync('sessionid'); uni.uploadFile({ url: UPLOAD_URL, filePath: this.tempFilePath, name: 'image', formData: formData, header: { 'Cookie': sessionId ? `sessionid=${sessionId}` : '' }, success: (uploadRes) => { this.loading = false; if (uploadRes.statusCode == 201 || uploadRes.statusCode == 200) { let data = JSON.parse(uploadRes.data); this.handleSuccess(data); } else { uni.showToast({title:'上传失败', icon:'none'}); } }, fail: () => { this.loading = false; uni.showToast({title:'网络错误', icon:'none'}); } }); } else { try { const res = await request({ url: '/api/products/', method: 'POST', data: formData }); this.loading = false; if (res) this.handleSuccess(res); } catch(e) { this.loading = false; } } },
 			handleSuccess(data: any) { this.result['zencode'] = data['zencode']; let hasPeer = !!this.form['peer_price']; let hasRetail = !!this.form['retail_price']; this.result['has_price'] = hasPeer || hasRetail; this.showSuccess = true; },
 			resetForm() { this.showSuccess = false; let cat = this.form['category']; let sup = this.form['supplier_id']; let acc = this.form['account_id']; this.form = { category: cat, supplier_id: sup, name: '', cpu: '', gpu: '', ram: '', disk: '', note: '', cost_price: '', paid_amount: '', account_id: acc, peer_price: '', retail_price: '' }; this.previewUrl = ''; this.tempFilePath = ''; }
 		}
 	}
 </script>
+
 <style>
 	.page { padding: 20rpx; background-color: #f5f7fa; height: 100%; }
 	.card { background-color: #fff; border-radius: 20rpx; padding: 24rpx; margin-bottom: 24rpx; }
 	.label-title { font-size: 24rpx; font-weight: bold; margin-bottom: 16rpx; display: block; }
-	.row-between { flex-direction: row; justify-content: space-between; align-items: center; } .flex-1 { flex: 1; }
-	.picker-box { background-color: #fff; border-radius: 12rpx; padding: 16rpx 20rpx; flex-direction: row; justify-content: space-between; align-items: center; border-width: 1px; border-color: #bfdbfe; border-style: solid; }
-	.picker-text { font-size: 28rpx; color: #333; } .picker-arrow { font-size: 24rpx; color: #999; }
-	.btn-mini { margin-left: 20rpx; background-color: #2563eb; color: #fff; width: 80rpx; height: 80rpx; border-radius: 16rpx; line-height: 80rpx; text-align: center; font-size: 40rpx; font-weight: bold; padding: 0; }
-	.section { margin-bottom: 24rpx; } .section-label { font-size: 24rpx; font-weight: bold; color: #666; margin-bottom: 16rpx; margin-left: 10rpx; }
-	.grid-4 { flex-direction: row; justify-content: space-between; gap: 16rpx; } .type-btn { flex: 1; padding: 20rpx 0; border-radius: 16rpx; align-items: center; justify-content: center; }
-	.btn-active { background-color: #2563eb; box-shadow: 0 4rpx 10rpx rgba(37,99,235,0.3); } .btn-normal { background-color: #e5e7eb; } .type-text { font-size: 28rpx; font-weight: bold; } .text-white { color: #fff; } .text-gray { color: #666; }
-	.upload-box { height: 300rpx; background-color: #fff; border-radius: 20rpx; margin-bottom: 24rpx; border-width: 2px; border-color: #e5e7eb; border-style: dashed; align-items: center; justify-content: center; overflow: hidden; }
-	.upload-placeholder { align-items: center; } .camera-icon { font-size: 60rpx; margin-bottom: 10rpx; } .camera-text { font-size: 24rpx; color: #999; } .upload-img { width: 100%; height: 100%; }
-	.form-group { margin-bottom: 24rpx; } .row-2 { flex-direction: row; gap: 20rpx; margin-bottom: 20rpx; }
-	.input-half { flex: 1; background-color: #fff; height: 80rpx; border-radius: 12rpx; padding: 0 20rpx; font-size: 28rpx; border-width: 1px; border-color: #e5e7eb; border-style: solid; }
-	.input-full { width: 100%; background-color: #fff; height: 80rpx; border-radius: 12rpx; padding: 0 20rpx; font-size: 28rpx; border-width: 1px; border-color: #e5e7eb; border-style: solid; }
-	.bg-gray-light { background-color: #f9fafb; border-width: 1px; border-color: #f3f4f6; border-style: solid; } .field-box { margin-bottom: 30rpx; }
-	.label-gray { font-size: 24rpx; font-weight: bold; color: #666; margin-bottom: 10rpx; } .input-wrapper { flex-direction: row; align-items: center; position: relative; }
-	.currency { position: absolute; left: 20rpx; top: 24rpx; font-size: 32rpx; color: #999; z-index: 10; }
-	.input-big { width: 100%; height: 100rpx; background-color: #fff; border-radius: 16rpx; padding-left: 60rpx; font-size: 40rpx; font-weight: bold; color: #333; border-width: 1px; border-color: #bfdbfe; border-style: solid; }
-	.pay-box { background-color: #fff; padding: 20rpx; border-radius: 16rpx; border-width: 1px; border-color: #e5e7eb; border-style: solid; margin-bottom: 30rpx; }
-	.pay-row { flex-direction: row; align-items: center; margin-bottom: 10rpx; } .label-sm { font-size: 28rpx; color: #666; width: 80rpx; } .input-pay { flex: 1; font-size: 28rpx; font-weight: bold; color: #2563eb; }
-	.debt-info { margin-bottom: 10rpx; } .debt-text { font-size: 24rpx; font-weight: bold; margin-left: 10rpx; } .text-red { color: #ef4444; } .text-blue { color: #2563eb; }
-	.account-select { margin-top: 10rpx; } .picker-inner { background-color: #f3f4f6; padding: 10rpx 20rpx; border-radius: 8rpx; flex-direction: row; justify-content: space-between; }
-	.border-top { border-top-width: 1px; border-top-color: #e5e7eb; border-top-style: solid; padding-top: 20rpx; }
-	.input-half-sm { flex: 1; background-color: #fff; height: 70rpx; border-radius: 8rpx; padding: 0 16rpx; font-size: 26rpx; border-width: 1px; border-color: #e5e7eb; border-style: solid; }
-	.btn-submit { background-color: #2563eb; color: #fff; border-radius: 20rpx; height: 100rpx; line-height: 100rpx; font-size: 36rpx; font-weight: bold; box-shadow: 0 10rpx 20rpx rgba(37,99,235,0.2); }
-	.bottom-placeholder { height: 60rpx; }
-	.modal-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 9999; }
-	.modal-box { width: 600rpx; background-color: #fff; border-radius: 24rpx; padding: 40rpx; align-items: center; }
-	.input-modal { width: 100%; height: 90rpx; background-color: #f3f4f6; border-radius: 12rpx; padding: 0 20rpx; margin-bottom: 20rpx; font-size: 28rpx; }
-	.modal-btns { flex-direction: row; justify-content: space-between; width: 100%; gap: 20rpx; margin-top: 20rpx; }
-	.btn-cancel { flex: 1; background-color: #e5e7eb; color: #333; height: 80rpx; line-height: 80rpx; border-radius: 12rpx; font-size: 30rpx; }
-	.btn-confirm { flex: 1; background-color: #2563eb; color: #fff; height: 80rpx; line-height: 80rpx; border-radius: 12rpx; font-size: 30rpx; }
-	.success-icon { font-size: 80rpx; margin-bottom: 20rpx; } .modal-title { font-size: 36rpx; font-weight: bold; margin-bottom: 30rpx; }
-	.code-box { background-color: #eff6ff; padding: 20rpx; border-radius: 16rpx; width: 100%; align-items: center; margin-bottom: 30rpx; } .code-label { font-size: 24rpx; color: #666; margin-bottom: 10rpx; } .code-text { font-size: 40rpx; font-weight: 900; color: #2563eb; letter-spacing: 2rpx; }
-	.warn-box { background-color: #fff7ed; padding: 20rpx; border-radius: 12rpx; border-width: 1px; border-color: #ffedd5; border-style: solid; margin-bottom: 30rpx; width: 100%; } .warn-title { font-size: 24rpx; color: #ea580c; font-weight: bold; margin-bottom: 6rpx; } .warn-desc { font-size: 22rpx; color: #f97316; } .btn-primary { background-color: #2563eb; color: #fff; width: 100%; height: 90rpx; line-height: 90rpx; border-radius: 16rpx; font-size: 32rpx; font-weight: bold; }
+	
+	/* ⚠️ 核心修复：分离布局 */
+	.supplier-row {
+		display: flex; flex-direction: row; align-items: center; justify-content: space-between;
+	}
+	.picker-wrapper { flex: 1; margin-right: 20rpx; }
+	.picker-full { width: 100%; }
+	.picker-box { background-color: #fff; border-radius: 12rpx; padding: 16rpx 20rpx; flex-direction: row; justify-content: space-between; align-items: center; border-width: 1px; border-color: #bfdbfe; border-style: solid; height: 80rpx; box-sizing: border-box; }
+	.picker-text { font-size: 28rpx; color: #333; }
+	.picker-arrow { font-size: 24rpx; color: #999; }
+	
+	.btn-add-wrapper {
+		width: 80rpx; height: 80rpx; 
+		background-color: #2563eb; border-radius: 16rpx; 
+		display: flex; align-items: center; justify-content: center;
+	}
+	.btn-add-icon { color: #fff; font-size: 40rpx; font-weight: bold; line-height: 1; }
+
+	/* ... 后续样式保持不变 (section, upload, form-group 等) ... */
+	.section { margin-bottom: 24rpx; } .section-label { font-size: 24rpx; font-weight: bold; color: #666; margin-bottom: 16rpx; margin-left: 10rpx; } .grid-4 { flex-direction: row; justify-content: space-between; gap: 16rpx; } .type-btn { flex: 1; padding: 20rpx 0; border-radius: 16rpx; align-items: center; justify-content: center; } .btn-active { background-color: #2563eb; box-shadow: 0 4rpx 10rpx rgba(37,99,235,0.3); } .btn-normal { background-color: #e5e7eb; } .type-text { font-size: 28rpx; font-weight: bold; } .text-white { color: #fff; } .text-gray { color: #666; } .upload-box { height: 300rpx; background-color: #fff; border-radius: 20rpx; margin-bottom: 24rpx; border-width: 2px; border-color: #e5e7eb; border-style: dashed; align-items: center; justify-content: center; overflow: hidden; } .upload-placeholder { align-items: center; } .camera-icon { font-size: 60rpx; margin-bottom: 10rpx; } .camera-text { font-size: 24rpx; color: #999; } .upload-img { width: 100%; height: 100%; } .form-group { margin-bottom: 24rpx; } .row-2 { flex-direction: row; gap: 20rpx; margin-bottom: 20rpx; } .input-half { flex: 1; background-color: #fff; height: 80rpx; border-radius: 12rpx; padding: 0 20rpx; font-size: 28rpx; border-width: 1px; border-color: #e5e7eb; border-style: solid; } .input-full { width: 100%; background-color: #fff; height: 80rpx; border-radius: 12rpx; padding: 0 20rpx; font-size: 28rpx; border-width: 1px; border-color: #e5e7eb; border-style: solid; } .bg-gray-light { background-color: #f9fafb; border-width: 1px; border-color: #f3f4f6; border-style: solid; } .field-box { margin-bottom: 30rpx; } .label-gray { font-size: 24rpx; font-weight: bold; color: #666; margin-bottom: 10rpx; } .input-wrapper { flex-direction: row; align-items: center; position: relative; } .currency { position: absolute; left: 20rpx; top: 24rpx; font-size: 32rpx; color: #999; z-index: 10; } .input-big { width: 100%; height: 100rpx; background-color: #fff; border-radius: 16rpx; padding-left: 60rpx; font-size: 40rpx; font-weight: bold; color: #333; border-width: 1px; border-color: #bfdbfe; border-style: solid; } .pay-box { background-color: #fff; padding: 20rpx; border-radius: 16rpx; border-width: 1px; border-color: #e5e7eb; border-style: solid; margin-bottom: 30rpx; } .pay-row { flex-direction: row; align-items: center; margin-bottom: 10rpx; } .label-sm { font-size: 28rpx; color: #666; width: 80rpx; } .input-pay { flex: 1; font-size: 28rpx; font-weight: bold; color: #2563eb; } .debt-info { margin-bottom: 10rpx; } .debt-text { font-size: 24rpx; font-weight: bold; margin-left: 10rpx; } .text-red { color: #ef4444; } .text-blue { color: #2563eb; } .account-select { margin-top: 10rpx; } .picker-inner { background-color: #f3f4f6; padding: 10rpx 20rpx; border-radius: 8rpx; flex-direction: row; justify-content: space-between; } .border-top { border-top-width: 1px; border-top-color: #e5e7eb; border-top-style: solid; padding-top: 20rpx; } .input-half-sm { flex: 1; background-color: #fff; height: 70rpx; border-radius: 8rpx; padding: 0 16rpx; font-size: 26rpx; border-width: 1px; border-color: #e5e7eb; border-style: solid; } .btn-submit { background-color: #2563eb; color: #fff; border-radius: 20rpx; height: 100rpx; line-height: 100rpx; font-size: 36rpx; font-weight: bold; box-shadow: 0 10rpx 20rpx rgba(37,99,235,0.2); } .bottom-placeholder { height: 60rpx; }
+	.modal-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 9999; } .modal-box { width: 600rpx; background-color: #fff; border-radius: 24rpx; padding: 40rpx; align-items: center; } .modal-title { font-size: 36rpx; font-weight: bold; margin-bottom: 30rpx; } .input-modal { width: 100%; height: 90rpx; background-color: #f3f4f6; border-radius: 12rpx; padding: 0 20rpx; margin-bottom: 20rpx; font-size: 28rpx; } .modal-btns { flex-direction: row; justify-content: space-between; width: 100%; gap: 20rpx; margin-top: 20rpx; } .btn-cancel { flex: 1; background-color: #e5e7eb; color: #333; height: 80rpx; line-height: 80rpx; border-radius: 12rpx; font-size: 30rpx; } .btn-confirm { flex: 1; background-color: #2563eb; color: #fff; height: 80rpx; line-height: 80rpx; border-radius: 12rpx; font-size: 30rpx; } .success-icon { font-size: 80rpx; margin-bottom: 20rpx; } .code-box { background-color: #eff6ff; padding: 20rpx; border-radius: 16rpx; width: 100%; align-items: center; margin-bottom: 30rpx; } .code-label { font-size: 24rpx; color: #666; margin-bottom: 10rpx; } .code-text { font-size: 40rpx; font-weight: 900; color: #2563eb; letter-spacing: 2rpx; } .warn-box { background-color: #fff7ed; padding: 20rpx; border-radius: 12rpx; border-width: 1px; border-color: #ffedd5; border-style: solid; margin-bottom: 30rpx; width: 100%; } .warn-title { font-size: 24rpx; color: #ea580c; font-weight: bold; margin-bottom: 6rpx; } .warn-desc { font-size: 22rpx; color: #f97316; } .btn-primary { background-color: #2563eb; color: #fff; width: 100%; height: 90rpx; line-height: 90rpx; border-radius: 16rpx; font-size: 32rpx; font-weight: bold; }
 </style>

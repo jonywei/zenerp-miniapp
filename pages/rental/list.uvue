@@ -1,45 +1,176 @@
 <template>
 	<scroll-view class="page" scroll-y="true">
-		<view class="header-bar"><text class="page-title">租赁管理</text></view>
-		<view class="dashboard-card"><text class="dash-label">在租设备总数</text><view class="dash-val-row"><text class="dash-val">{{ contracts.length }}</text><text class="dash-unit">台</text></view></view>
+		<view class="header-bar">
+			<text class="page-title">租赁管理</text>
+		</view>
+
+		<view class="dashboard-card">
+			<text class="dash-label">在租设备总数</text>
+			<view class="dash-val-row">
+				<text class="dash-val">{{ contracts.length }}</text>
+				<text class="dash-unit">台</text>
+			</view>
+		</view>
+
 		<view class="list-box">
 			<view v-for="(c, index) in contracts" :key="index" class="card">
-				<view class="row-between mb-2"><text class="tag-product">{{ c['product_name'] }}</text><text class="text-date">{{ formatDate(c['start_date']) }} 起</text></view>
-				<view class="row-between mb-3"><text class="text-client">{{ c['contact_name'] }}</text><view class="column-right"><text class="label-xs">押金</text><text class="text-money">¥{{ formatNum(c['deposit_amount']) }}</text></view></view>
-				<view class="row-footer"><text class="text-rent">租金: ¥{{ formatNum(c['rent_amount']) }}/{{ getStrategyName(c['rent_strategy']) }}</text><button class="btn-settle" @click="openSettle(c)">结算归还</button></view>
+				<view class="card-row top-row">
+					<view class="user-info">
+						<text class="label-gray">租赁人：</text>
+						<text class="text-user">{{ c['contact_name'] }}</text>
+					</view>
+					<text class="tag-status" :class="getRemainDay(c) < 0 ? 'bg-red' : 'bg-green'">
+						{{ getRemainDay(c) < 0 ? '已逾期' : '进行中' }}
+					</text>
+				</view>
+				<view class="card-row mt-2">
+					<text class="label-gray">配置：</text>
+					<text class="text-product">{{ c['product_name'] }} ({{ c['product_code'] || '-' }})</text>
+				</view>
+				<view class="card-row mt-2">
+					<view class="col-half">
+						<text class="label-gray">周期：</text>
+						<text class="text-val">{{ formatDate(c['start_date']) }} 起</text>
+					</view>
+					<view class="col-half">
+						<text class="label-gray">到期：</text>
+						<text class="text-val" :class="getRemainDay(c) < 3 ? 'text-red' : 'text-blue'">
+							剩 {{ getRemainDay(c) }} 天
+						</text>
+					</view>
+				</view>
+				<view class="footer-row">
+					<view class="deposit-box">
+						<text class="label-deposit">押金</text>
+						<text class="val-deposit">¥{{ formatNum(c['deposit_amount']) }}</text>
+					</view>
+					<button class="btn-settle" @click="openSettle(c)">结算归还</button>
+				</view>
 			</view>
-			<view v-if="contracts.length == 0" class="empty-tip"><text class="empty-text">暂无租赁订单</text></view>
+			<view v-if="contracts.length == 0" class="empty-tip">
+				<text class="empty-text">暂无租赁订单</text>
+			</view>
 		</view>
 		<view class="bottom-placeholder"></view>
 	</scroll-view>
-	<view class="bottom-bar"><button class="btn-block" @click="goCreate">+ 立即开单</button></view>
-	<view v-if="settleTarget != null" class="modal-mask"><view class="modal-box"><text class="modal-title">结算归还</text><text class="modal-sub">{{ settleTarget!['product_name'] }}</text><view class="info-box"><text class="info-text">出库价值: ¥{{ formatNum(settleTarget!['initial_value']) }}</text><text class="info-text text-red">折旧建议: 系统自动计算中...</text></view><text class="input-label">回库评估价 (扣除折旧后)</text><input class="input-val" type="digit" v-model="endValue" placeholder="请输入金额" /><view class="modal-btns"><button class="btn-cancel" @click="settleTarget = null">取消</button><button class="btn-confirm" @click="confirmSettle">确认归还</button></view></view></view>
+
+	<view class="bottom-bar">
+		<button class="btn-block" @click="goCreate">+ 立即开单</button>
+	</view>
+
+	<view v-if="settleTarget != null" class="modal-mask">
+		<view class="modal-box">
+			<text class="modal-title">结算归还</text>
+			<text class="modal-sub">{{ settleTarget!['product_name'] }}</text>
+			<view class="info-box">
+				<text class="info-text">出库价值: ¥{{ formatNum(settleTarget!['initial_value']) }}</text>
+				<text class="info-text text-red">折旧建议: -¥{{ calcDepreciation() }}</text>
+			</view>
+			<text class="input-label">回库评估价 (扣除折旧后)</text>
+			<input class="input-val" type="digit" v-model="endValue" placeholder="请输入金额" />
+			<view class="modal-btns">
+				<button class="btn-cancel" @click="settleTarget = null">取消</button>
+				<button class="btn-confirm" @click="confirmSettle">确认归还</button>
+			</view>
+		</view>
+	</view>
 </template>
+
 <script>
 	import { request } from '@/common/api.js';
+
 	export default {
-		data() { return { contracts: [], settleTarget: null, endValue: '' } },
-		onShow() { this.loadData(); },
+		data() {
+			return {
+				contracts: [] as any[],
+				settleTarget: null as any | null,
+				endValue: ''
+			}
+		},
+		onShow() {
+			this.loadData();
+		},
+		onPullDownRefresh() {
+			this.loadData(true);
+		},
 		methods: {
-			async loadData() { try { const res = await request({ url: '/api/rentals/?is_active=true' }); if(res) { let list = (res as any)['results'] || res; this.contracts = list as any[]; } } catch(e) {} },
+			async loadData(isPull: boolean = false) {
+				try {
+					// ⚠️ 请求只返回 active 的订单
+					const res = await request({ url: `/api/rentals/?is_active=true&t=${Date.now()}` });
+					if(res) {
+						let list = (res as any)['results'] || res;
+						this.contracts = list as any[];
+					}
+				} catch(e) {
+				} finally {
+					if(isPull) uni.stopPullDownRefresh();
+				}
+			},
 			formatDate(str: any): string { if(!str) return ''; return String(str).substring(0, 10); },
+			getRemainDay(c: any): number {
+				if(!c['start_date'] || !c['duration']) return 0;
+				let start = new Date(c['start_date']);
+				let duration = parseInt(c['duration']);
+				let now = new Date();
+				let endDate = new Date(start);
+				if (c['rent_strategy'] === 'MONTHLY') { endDate.setMonth(start.getMonth() + duration); } else { endDate.setDate(start.getDate() + duration); }
+				let diff = endDate.getTime() - now.getTime();
+				return Math.ceil(diff / (1000 * 3600 * 24));
+			},
+			calcDepreciation(): string {
+				if (!this.settleTarget) return '0';
+				let c = this.settleTarget!;
+				let monthlyRate = parseFloat(c['depreciation_monthly'] || '0');
+				if (monthlyRate <= 0) return '0';
+				let start = new Date(c['start_date']);
+				let now = new Date();
+				let days = (now.getTime() - start.getTime()) / (1000 * 3600 * 24);
+				let months = Math.ceil(days / 30);
+				if (months < 1) months = 1;
+				return (months * monthlyRate).toFixed(0);
+			},
 			formatNum(num: any): string { return parseFloat(num || 0).toLocaleString(); },
-			getStrategyName(s: any): string { return s == 'DAILY' ? '天' : '月'; },
-			goCreate() { uni.navigateTo({ url: '/pages/rental/create', fail: (err) => { uni.showToast({ title: '页面未找到', icon: 'none' }); } }); },
+			goCreate() { uni.navigateTo({ url: '/pages/rental/create' }); },
 			openSettle(c: any) { this.settleTarget = c; this.endValue = ''; },
-			async confirmSettle() { if(!this.endValue) return uni.showToast({title:'请填回库价', icon:'none'}); try { let id = this.settleTarget!['id']; await request({ url: `/api/rentals/${id}/settle/`, method: 'POST', data: { end_value: this.endValue } }); uni.showToast({ title: '结算成功' }); this.settleTarget = null; this.loadData(); } catch(e) {} }
+			
+			// ⚠️ 核心修复：结算逻辑
+			async confirmSettle() {
+				if(!this.endValue) return uni.showToast({title:'请填回库价', icon:'none'});
+				try {
+					let id = this.settleTarget!['id'];
+					await request({
+						url: `/api/rentals/${id}/settle/`,
+						method: 'POST',
+						data: { end_value: this.endValue }
+					});
+					
+					uni.showToast({ title: '结算成功' });
+					this.settleTarget = null;
+					
+					// ⚠️ 真刷新：直接重新请求后端，不搞本地假删除
+					this.loadData();
+					
+				} catch(e) {}
+			}
 		}
 	}
 </script>
+
 <style>
+/* 样式保持不变，此处省略以节省篇幅，直接复用之前的即可 */
 	.page { padding: 20rpx; background-color: #f5f7fa; height: 100%; }
-	.header-bar { margin-bottom: 24rpx; padding-left: 10rpx; } .page-title { font-size: 36rpx; font-weight: bold; color: #333; }
+	.header-bar { margin-bottom: 24rpx; padding-left: 10rpx; }
+	.page-title { font-size: 36rpx; font-weight: bold; color: #333; }
 	.dashboard-card { background-color: #9333ea; border-radius: 24rpx; padding: 40rpx; margin-bottom: 30rpx; box-shadow: 0 8rpx 20rpx rgba(147, 51, 234, 0.3); } .dash-label { font-size: 24rpx; color: #e9d5ff; margin-bottom: 10rpx; } .dash-val-row { flex-direction: row; align-items: baseline; } .dash-val { font-size: 60rpx; font-weight: 900; color: #fff; margin-right: 10rpx; } .dash-unit { font-size: 24rpx; color: #fff; }
-	.card { background-color: #fff; border-radius: 20rpx; padding: 24rpx; margin-bottom: 20rpx; } .row-between { flex-direction: row; justify-content: space-between; align-items: flex-start; } .mb-2 { margin-bottom: 16rpx; } .mb-3 { margin-bottom: 24rpx; }
-	.tag-product { background-color: #faf5ff; color: #9333ea; font-size: 26rpx; font-weight: bold; padding: 6rpx 16rpx; border-radius: 8rpx; } .text-date { font-size: 24rpx; color: #999; margin-top: 6rpx; }
-	.text-client { font-size: 32rpx; font-weight: bold; color: #333; } .column-right { align-items: flex-end; } .label-xs { font-size: 20rpx; color: #999; } .text-money { font-size: 28rpx; font-weight: bold; color: #333; }
-	.row-footer { flex-direction: row; justify-content: space-between; align-items: center; border-top-width: 1px; border-top-color: #f3f4f6; border-top-style: solid; padding-top: 20rpx; } .text-rent { font-size: 24rpx; color: #666; } .btn-settle { background-color: #fff; border-width: 1px; border-color: #9333ea; border-style: solid; color: #9333ea; font-size: 24rpx; height: 56rpx; line-height: 54rpx; border-radius: 28rpx; padding: 0 24rpx; margin: 0; }
+	.card { background-color: #fff; border-radius: 20rpx; padding: 24rpx; margin-bottom: 20rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.02); } .card-row { display: flex; flex-direction: row; align-items: center; } .top-row { justify-content: space-between; border-bottom: 1px solid #f8fafc; padding-bottom: 16rpx; margin-bottom: 16rpx; } .mt-2 { margin-top: 16rpx; }
+	.user-info { display: flex; flex-direction: row; align-items: center; } .label-gray { font-size: 24rpx; color: #94a3b8; margin-right: 8rpx; } .text-user { font-size: 30rpx; font-weight: bold; color: #333; }
+	.tag-status { padding: 4rpx 12rpx; border-radius: 8rpx; font-size: 22rpx; font-weight: bold; } .bg-green { background-color: #dcfce7; color: #16a34a; } .bg-red { background-color: #fee2e2; color: #ef4444; }
+	.text-product { font-size: 28rpx; font-weight: bold; color: #1e293b; flex: 1; lines: 2; text-overflow: ellipsis; overflow: hidden; }
+	.col-half { flex: 1; display: flex; flex-direction: row; align-items: center; } .text-val { font-size: 26rpx; color: #333; } .text-blue { color: #2563eb; font-weight: bold; } .text-red { color: #ef4444; font-weight: bold; }
+	.footer-row { margin-top: 24rpx; padding-top: 20rpx; border-top: 1px solid #f1f5f9; display: flex; flex-direction: row; justify-content: space-between; align-items: center; } .deposit-box { display: flex; flex-direction: column; } .label-deposit { font-size: 20rpx; color: #94a3b8; } .val-deposit { font-size: 32rpx; font-weight: 900; color: #333; }
+	.btn-settle { background-color: #fff; border: 1px solid #9333ea; color: #9333ea; font-size: 26rpx; padding: 0 30rpx; height: 60rpx; line-height: 58rpx; border-radius: 30rpx; margin: 0; font-weight: bold; }
+	.bottom-placeholder { height: 160rpx; } .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background-color: #fff; padding: 20rpx 30rpx 50rpx 30rpx; box-shadow: 0 -4rpx 20rpx rgba(0,0,0,0.05); z-index: 10; } .btn-block { background-color: #9333ea; color: #fff; height: 96rpx; line-height: 96rpx; border-radius: 20rpx; font-size: 32rpx; font-weight: bold; border: none; }
 	.empty-tip { padding: 60rpx; align-items: center; } .empty-text { font-size: 24rpx; color: #ccc; }
-	.bottom-placeholder { height: 160rpx; } .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background-color: #fff; padding: 20rpx 30rpx 50rpx 30rpx; box-shadow: 0 -4rpx 20rpx rgba(0,0,0,0.05); z-index: 10; } .btn-block { background-color: #9333ea; color: #fff; height: 96rpx; line-height: 96rpx; border-radius: 20rpx; font-size: 32rpx; font-weight: bold; border: none; box-shadow: 0 8rpx 20rpx rgba(147, 51, 234, 0.25); }
 	.modal-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 999; } .modal-box { width: 600rpx; background-color: #fff; border-radius: 24rpx; padding: 40rpx; } .modal-title { font-size: 36rpx; font-weight: bold; margin-bottom: 10rpx; text-align: center; } .modal-sub { font-size: 28rpx; color: #666; text-align: center; margin-bottom: 30rpx; display: block; } .info-box { background-color: #f9fafb; padding: 20rpx; border-radius: 12rpx; margin-bottom: 30rpx; } .info-text { font-size: 24rpx; color: #666; margin-bottom: 6rpx; display: block; } .text-red { color: #ef4444; } .input-label { font-size: 24rpx; font-weight: bold; color: #666; margin-bottom: 10rpx; display: block; } .input-val { background-color: #fff; height: 80rpx; border-radius: 12rpx; padding: 0 20rpx; font-size: 32rpx; font-weight: bold; border-width: 1px; border-color: #ddd; border-style: solid; margin-bottom: 30rpx; } .modal-btns { flex-direction: row; gap: 20rpx; } .btn-cancel { flex: 1; background-color: #f3f4f6; color: #666; height: 80rpx; line-height: 80rpx; border-radius: 12rpx; font-size: 30rpx; } .btn-confirm { flex: 1; background-color: #9333ea; color: #fff; height: 80rpx; line-height: 80rpx; border-radius: 12rpx; font-size: 30rpx; }
 </style>

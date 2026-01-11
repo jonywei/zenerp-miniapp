@@ -24,9 +24,10 @@
 	import { request } from '@/common/api.js';
 	export default {
 		data() { return { data: { net_worth: 0, stock: 0, cash: 0, accounts: [] } as any } },
+		// ⚠️ 强刷
 		onShow() { this.loadData(); },
 		methods: {
-			async loadData() { try { const res = await request({ url: '/api/analysis/accounting/' }); if(res) this.data = res; } catch(e) {} },
+			async loadData() { try { const res = await request({ url: `/api/analysis/accounting/?t=${Date.now()}` }); if(res) this.data = res; } catch(e) {} },
 			formatNum(num: any): string { return parseFloat(num || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2}); },
 			getFirstChar(name: any): string { return String(name || '').substring(0, 1); },
 			goDetail(acc: any) { uni.navigateTo({ url: `/pages/account/detail?id=${acc['id']}&name=${acc['name']}&balance=${this.formatNum(acc['balance'])}` }); }

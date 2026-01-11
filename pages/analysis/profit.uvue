@@ -1,42 +1,236 @@
 <template>
 	<scroll-view class="page" scroll-y="true">
+		
 		<view class="filter-card">
-			<view class="row-between mb-3"><text class="label">统计时间段</text><view class="date-row"><picker mode="date" :value="startDate" @change="onStartChange"><view class="date-btn">{{ startDate }}</view></picker><text class="split">-</text><picker mode="date" :value="endDate" @change="onEndChange"><view class="date-btn">{{ endDate }}</view></picker></view></view>
-			<view class="row-between"><text class="label">销售人员</text><picker mode="selector" :range="staffNames" @change="onStaffChange"><view class="picker-simple"><text>{{ currentStaffName }}</text><text class="arrow">▼</text></view></picker></view>
-			<button class="btn-search" @click="loadData">查询</button>
-		</view>
-		<view class="grid-3">
-			<view class="data-item border-blue"><text class="data-label text-blue">销售额</text><text class="data-val">¥{{ formatNum(summary['sales']) }}</text></view>
-			<view class="data-item border-gray"><text class="data-label text-gray">总成本</text><text class="data-val">¥{{ formatNum(summary['cost']) }}</text></view>
-			<view class="data-item border-yellow"><text class="data-label text-yellow">净毛利</text><text class="data-val">¥{{ formatNum(summary['profit']) }}</text></view>
-		</view>
-		<view class="section-title"><text class="title-text">明细清单 ({{ summary['count'] }}单)</text></view>
-		<view class="list-box">
-			<view v-for="(item, index) in (list as any[])" :key="index" class="list-item">
-				<view class="row-between mb-1"><text class="p-name">{{ item['product_name'] }}</text><text class="p-sales">¥{{ formatNum(item['sales']) }}</text></view>
-				<view class="row-between"><view class="tags"><text class="tag-code">{{ item['zencode'] }}</text><text class="text-date">{{ item['date'] }}</text></view><text class="p-profit" :class="isPositive(item['profit']) ? 'text-green' : 'text-red'">赚: ¥{{ formatNum(item['profit']) }}</text></view>
-				<view class="row-footer" v-if="item['staff'] != '-' || item['customer'] != '-'"><text class="tag-meta" v-if="item['staff'] != '-'">销: {{ item['staff'] }}</text><text class="tag-meta" v-if="item['customer'] != '-'">客: {{ item['customer'] }}</text></view>
+			<view class="card-header">
+				<view class="blue-bar"></view>
+				<text class="header-text">战报筛选</text>
 			</view>
-			<view v-if="(list as any[]).length == 0" class="empty-tip"><text class="empty-text">暂无销售记录</text></view>
+			
+			<view class="filter-body">
+				<view class="filter-row">
+					<text class="label">日期</text>
+					<view class="date-picker-box">
+						<picker mode="date" :value="startDate" @change="onStartChange">
+							<text class="date-txt">{{ startDate }}</text>
+						</picker>
+						<text class="split">-</text>
+						<picker mode="date" :value="endDate" @change="onEndChange">
+							<text class="date-txt">{{ endDate }}</text>
+						</picker>
+					</view>
+				</view>
+				
+				<view class="filter-row mt-3">
+					<text class="label">人员</text>
+					<picker mode="selector" :range="staffNames" @change="onStaffChange" class="staff-picker">
+						<view class="staff-box">
+							<text class="staff-txt" :class="staffId?'text-blue':'text-gray'">{{ currentStaffName }}</text>
+							<text class="arrow">▼</text>
+						</view>
+					</picker>
+				</view>
+				
+				<button class="btn-query" @click="loadData">立即查询</button>
+			</view>
 		</view>
+
+		<view class="grid-3">
+			<view class="data-item border-blue">
+				<text class="data-label text-blue">总销售额</text>
+				<text class="data-val">¥{{ formatNum(summary['sales']) }}</text>
+			</view>
+			<view class="data-item border-gray">
+				<text class="data-label text-gray">总成本</text>
+				<text class="data-val">¥{{ formatNum(summary['cost']) }}</text>
+			</view>
+			<view class="data-item border-yellow">
+				<text class="data-label text-yellow">净毛利</text>
+				<text class="data-val">¥{{ formatNum(summary['profit']) }}</text>
+			</view>
+		</view>
+
+		<view class="section-title">
+			<text class="title-text">交易明细 ({{ summary['count'] }}单)</text>
+		</view>
+		
+		<view class="list-box">
+			<view v-for="(item, index) in (list as any[])" :key="index" class="card">
+				<view class="card-row border-b mb-2 pb-2">
+					<text class="p-name">{{ item['product_name'] }}</text>
+					<view class="profit-badge" :class="isPositive(item['profit']) ? 'bg-green' : 'bg-red'">
+						<text class="profit-text">{{ isPositive(item['profit']) ? '赚' : '亏' }} ¥{{ formatNum(item['profit']) }}</text>
+					</view>
+				</view>
+				
+				<view class="card-row mb-1">
+					<text class="label-sm">单号：</text>
+					<text class="text-val monospace">{{ item['zencode'] }}</text>
+				</view>
+				<view class="card-row mb-2">
+					<text class="label-sm">时间：</text>
+					<text class="text-val">{{ item['date'] }}</text>
+				</view>
+				
+				<view class="footer-row">
+					<view class="col">
+						<text class="label-sm">成交价</text>
+						<text class="text-money">¥{{ formatNum(item['sales']) }}</text>
+					</view>
+					
+					<view class="tags-group">
+						<view class="tag-pill blue" v-if="item['staff'] != '-'">
+							<text class="tag-icon">👤</text>
+							<text class="tag-txt">{{ item['staff'] }}</text>
+						</view>
+						<view class="tag-pill purple" v-if="item['customer'] != '-'">
+							<text class="tag-icon">🏢</text>
+							<text class="tag-txt">{{ item['customer'] }}</text>
+						</view>
+					</view>
+				</view>
+			</view>
+			
+			<view v-if="(list as any[]).length == 0" class="empty-tip">
+				<text class="empty-text">暂无记录</text>
+			</view>
+		</view>
+		
 	</scroll-view>
 </template>
+
 <script>
 	import { request } from '@/common/api.js';
+
 	export default {
-		data() { return { startDate: '', endDate: '', staffId: '', staffList: [], staffNames: ['全部员工'], currentStaffName: '全部', summary: { sales: 0, cost: 0, profit: 0, count: 0 } as any, list: [] } },
-		onLoad() { let now = new Date(); let y = now.getFullYear(); let m = now.getMonth() + 1; let d = now.getDate(); this.endDate = `${y}-${m < 10 ? '0'+m : m}-${d < 10 ? '0'+d : d}`; this.startDate = `${y}-${m < 10 ? '0'+m : m}-01`; this.loadData(); },
-		methods: { async loadData() { try { let url = `/api/analysis/profit_dashboard/?start_date=${this.startDate}&end_date=${this.endDate}`; if(this.staffId) url += `&staff_id=${this.staffId}`; const res = await request({ url: url }); if(res) { this.summary = (res as any)['summary']; this.list = (res as any)['list']; let opts = (res as any)['options'] as any; if(opts && opts['staff']) { this.staffList = opts['staff']; this.staffNames = ['全部员工']; this.staffNames.push(...this.staffList.map((s: any): string => s['name'])); } } } catch(e) {} }, onStartChange(e: any) { this.startDate = e.detail.value; }, onEndChange(e: any) { this.endDate = e.detail.value; }, onStaffChange(e: any) { let index = e.detail.value as number; if(index == 0) { this.staffId = ''; this.currentStaffName = '全部'; } else { let s = this.staffList[index - 1]; this.staffId = s['id']; this.currentStaffName = s['name']; } }, formatNum(num: any): string { return parseFloat(num || 0).toLocaleString(); }, isPositive(num: any): boolean { return parseFloat(num || 0) >= 0; } }
+		data() {
+			return {
+				startDate: '', endDate: '', staffId: '',
+				staffList: [] as any[], staffNames: ['全部销售员'], currentStaffName: '全部销售员',
+				summary: { sales: 0, cost: 0, profit: 0, count: 0 } as any, list: []
+			}
+		},
+		onShow() {
+			let now = new Date();
+			let y = now.getFullYear();
+			let m = now.getMonth() + 1;
+			let d = now.getDate();
+			if(!this.startDate) {
+				this.endDate = `${y}-${m < 10 ? '0'+m : m}-${d < 10 ? '0'+d : d}`;
+				this.startDate = `${y}-${m < 10 ? '0'+m : m}-01`;
+			}
+			this.loadData();
+		},
+		methods: {
+			async loadData() {
+				uni.showLoading({ title: '查询中...' });
+				try {
+					let url = `/api/analysis/profit_dashboard/?start_date=${this.startDate}&end_date=${this.endDate}&t=${Date.now()}`;
+					if(this.staffId) url += `&staff_id=${this.staffId}`;
+					
+					const res = await request({ url: url });
+					if(res) {
+						this.summary = (res as any)['summary'];
+						this.list = (res as any)['list'];
+						let opts = (res as any)['options'] as any;
+						if(opts && opts['staff'] && this.staffList.length === 0) {
+							this.staffList = opts['staff'];
+							this.staffNames = ['全部销售员'];
+							this.staffNames.push(...this.staffList.map((s: any): string => s['name']));
+						}
+					}
+				} catch(e) { console.error(e); } 
+				finally { uni.hideLoading(); }
+			},
+			onStartChange(e: any) { this.startDate = e.detail.value; },
+			onEndChange(e: any) { this.endDate = e.detail.value; },
+			onStaffChange(e: any) {
+				let index = e.detail.value as number;
+				if(index == 0) {
+					this.staffId = '';
+					this.currentStaffName = '全部销售员';
+				} else {
+					let s = this.staffList[index - 1];
+					this.staffId = s['id'];
+					this.currentStaffName = s['name'];
+				}
+				this.loadData();
+			},
+			formatNum(num: any): string { return parseFloat(num || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2}); },
+			isPositive(num: any): boolean { return parseFloat(num || 0) >= 0; }
+		}
 	}
 </script>
+
 <style>
-	.page { padding: 20rpx; background-color: #f8faff; height: 100%; }
-	.filter-card { background-color: #fff; padding: 30rpx; border-radius: 24rpx; margin-bottom: 30rpx; } .row-between { flex-direction: row; justify-content: space-between; align-items: center; } .mb-3 { margin-bottom: 24rpx; } .label { font-size: 28rpx; color: #64748b; font-weight: bold; }
-	.date-row { flex-direction: row; align-items: center; } .date-btn { background-color: #f1f5f9; padding: 12rpx 24rpx; border-radius: 12rpx; font-size: 28rpx; color: #333; } .split { margin: 0 10rpx; color: #ccc; }
-	.picker-simple { flex-direction: row; align-items: center; } .arrow { color: #ccc; font-size: 24rpx; margin-left: 10rpx; } .btn-search { background-color: #2563eb; color: #fff; height: 80rpx; line-height: 80rpx; font-size: 30rpx; font-weight: bold; border-radius: 16rpx; margin-top: 30rpx; }
-	.grid-3 { flex-direction: row; justify-content: space-between; gap: 20rpx; margin-bottom: 40rpx; } .data-item { flex: 1; background-color: #fff; padding: 24rpx; border-radius: 20rpx; align-items: center; border-top-width: 6rpx; border-top-style: solid; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02); } .border-blue { border-top-color: #3b82f6; } .border-gray { border-top-color: #94a3b8; } .border-yellow { border-top-color: #eab308; }
-	.data-label { font-size: 24rpx; margin-bottom: 10rpx; } .text-blue { color: #3b82f6; } .text-gray { color: #64748b; } .text-yellow { color: #ca8a04; } .data-val { font-size: 32rpx; font-weight: bold; color: #333; }
+	.page { padding: 20rpx; background-color: #f8fafc; height: 100%; }
+	
+	/* 筛选卡片优化 */
+	.filter-card { background-color: #fff; border-radius: 20rpx; margin-bottom: 30rpx; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02); overflow: hidden; }
+	.card-header { padding: 24rpx; border-bottom: 1px solid #f1f5f9; display: flex; flex-direction: row; align-items: center; }
+	.blue-bar { width: 8rpx; height: 32rpx; background-color: #2563eb; border-radius: 4rpx; margin-right: 16rpx; }
+	.header-text { font-size: 30rpx; font-weight: bold; color: #1e293b; }
+	.filter-body { padding: 30rpx; }
+	
+	.filter-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+	.mt-3 { margin-top: 30rpx; }
+	.label { font-size: 28rpx; font-weight: bold; color: #64748b; width: 120rpx; }
+	
+	.date-picker-box { flex: 1; display: flex; flex-direction: row; align-items: center; justify-content: flex-end; }
+	.date-txt { background-color: #f1f5f9; padding: 10rpx 20rpx; border-radius: 12rpx; font-size: 26rpx; color: #333; font-weight: bold; }
+	.split { margin: 0 16rpx; color: #cbd5e1; }
+	
+	.staff-picker { flex: 1; }
+	.staff-box { 
+		background-color: #f1f5f9; height: 80rpx; border-radius: 12rpx; 
+		display: flex; flex-direction: row; align-items: center; justify-content: space-between; 
+		padding: 0 20rpx; 
+	}
+	.staff-txt { font-size: 28rpx; font-weight: bold; }
+	.text-blue { color: #2563eb; } .text-gray { color: #64748b; }
+	.arrow { color: #cbd5e1; font-size: 22rpx; }
+	
+	.btn-query { 
+		background-color: #2563eb; color: #fff; height: 88rpx; line-height: 88rpx; 
+		font-size: 32rpx; font-weight: bold; border-radius: 16rpx; margin-top: 40rpx; 
+		box-shadow: 0 8rpx 20rpx rgba(37,99,235,0.25); border: none;
+	}
+	
+	/* 三色看板 */
+	.grid-3 { flex-direction: row; justify-content: space-between; gap: 20rpx; margin-bottom: 40rpx; }
+	.data-item { flex: 1; background-color: #fff; padding: 24rpx 10rpx; border-radius: 20rpx; align-items: center; border-top-width: 6rpx; border-top-style: solid; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02); }
+	.border-blue { border-top-color: #3b82f6; } .border-gray { border-top-color: #94a3b8; } .border-yellow { border-top-color: #eab308; }
+	.data-label { font-size: 22rpx; margin-bottom: 10rpx; } .text-blue { color: #3b82f6; } .text-gray { color: #64748b; } .text-yellow { color: #ca8a04; }
+	.data-val { font-size: 30rpx; font-weight: 900; color: #1e293b; }
+	
 	.section-title { margin-bottom: 20rpx; padding-left: 10rpx; } .title-text { font-size: 28rpx; font-weight: bold; color: #475569; }
-	.list-box { background-color: #fff; border-radius: 24rpx; padding: 0 24rpx; } .list-item { padding: 24rpx 0; border-bottom-width: 1px; border-bottom-color: #f1f5f9; border-bottom-style: solid; } .mb-1 { margin-bottom: 8rpx; }
-	.p-name { font-size: 30rpx; font-weight: bold; color: #333; } .p-sales { font-size: 30rpx; font-weight: bold; color: #2563eb; } .tags { flex-direction: row; align-items: center; } .tag-code { background-color: #f1f5f9; font-size: 22rpx; color: #64748b; padding: 2rpx 8rpx; border-radius: 6rpx; margin-right: 10rpx; } .text-date { font-size: 22rpx; color: #94a3b8; } .p-profit { font-size: 26rpx; font-weight: bold; } .text-green { color: #10b981; } .text-red { color: #ef4444; } .row-footer { flex-direction: row; justify-content: flex-end; margin-top: 10rpx; gap: 10rpx; } .tag-meta { font-size: 20rpx; background-color: #eff6ff; color: #2563eb; padding: 2rpx 8rpx; border-radius: 6rpx; } .empty-tip { padding: 60rpx; align-items: center; } .empty-text { font-size: 24rpx; color: #ccc; }
+	
+	/* 列表卡片 */
+	.list-box { padding-bottom: 60rpx; }
+	.card { background-color: #fff; border-radius: 20rpx; padding: 24rpx; margin-bottom: 20rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.02); }
+	.card-row { display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
+	.border-b { border-bottom: 1px solid #f1f5f9; } .mb-1 { margin-bottom: 8rpx; } .mb-2 { margin-bottom: 16rpx; } .pb-2 { padding-bottom: 16rpx; }
+	
+	.p-name { font-size: 30rpx; font-weight: bold; color: #1e293b; flex: 1; overflow: hidden; text-overflow: ellipsis; lines: 1; }
+	.profit-badge { padding: 4rpx 12rpx; border-radius: 8rpx; margin-left: 10rpx; }
+	.bg-green { background-color: #dcfce7; } .bg-red { background-color: #fee2e2; }
+	.profit-text { font-size: 24rpx; font-weight: 900; }
+	.bg-green .profit-text { color: #16a34a; } .bg-red .profit-text { color: #ef4444; }
+	
+	.label-sm { font-size: 24rpx; color: #94a3b8; margin-right: 8rpx; }
+	.text-val { font-size: 26rpx; color: #475569; }
+	.monospace { font-family: monospace; background-color: #f1f5f9; padding: 0 8rpx; border-radius: 6rpx; }
+	
+	.footer-row { margin-top: 20rpx; padding-top: 20rpx; border-top: 1px solid #f1f5f9; display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
+	.col { display: flex; flex-direction: column; }
+	.text-money { font-size: 32rpx; font-weight: bold; color: #1e293b; }
+	
+	.tags-group { display: flex; flex-direction: row; gap: 12rpx; }
+	.tag-pill { display: flex; flex-direction: row; align-items: center; padding: 6rpx 16rpx; border-radius: 30rpx; }
+	.blue { background-color: #eff6ff; } .purple { background-color: #faf5ff; }
+	.tag-icon { font-size: 20rpx; margin-right: 6rpx; }
+	.tag-txt { font-size: 22rpx; font-weight: bold; }
+	.blue .tag-txt { color: #2563eb; } .purple .tag-txt { color: #9333ea; }
+	
+	.empty-tip { padding: 60rpx; align-items: center; } .empty-text { font-size: 24rpx; color: #ccc; }
 </style>

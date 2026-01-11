@@ -1,32 +1,174 @@
 <template>
 	<scroll-view class="page" scroll-y="true">
-		<view class="tab-box"><view class="tab-item" :class="activeTab == 'in' ? 'tab-active-green' : ''" @click="switchTab('in')"><text class="tab-title" :class="activeTab == 'in' ? 'text-white' : 'text-gray'">应收账款</text><text class="tab-desc" :class="activeTab == 'in' ? 'text-white-sub' : ''">别人欠我 ({{ inList.length }})</text></view><view class="tab-item" :class="activeTab == 'out' ? 'tab-active-red' : ''" @click="switchTab('out')"><text class="tab-title" :class="activeTab == 'out' ? 'text-white' : 'text-gray'">应付账款</text><text class="tab-desc" :class="activeTab == 'out' ? 'text-white-sub' : ''">我欠别人 ({{ outList.length }})</text></view></view>
-		<view class="summary-bar"><text class="sum-label">合计金额:</text><text class="sum-val" :class="activeTab=='in'?'text-green':'text-red'">¥ {{ formatNum(currentTotal) }}</text></view>
+		
+		<view class="tab-box">
+			<view class="tab-item" :class="activeTab == 'in' ? 'tab-active-green' : ''" @click="switchTab('in')">
+				<text class="tab-title" :class="activeTab == 'in' ? 'text-white' : 'text-gray'">应收账款</text>
+				<text class="tab-desc" :class="activeTab == 'in' ? 'text-white-sub' : ''">别人欠我 ({{ inList.length }})</text>
+			</view>
+			<view class="tab-item" :class="activeTab == 'out' ? 'tab-active-red' : ''" @click="switchTab('out')">
+				<text class="tab-title" :class="activeTab == 'out' ? 'text-white' : 'text-gray'">应付账款</text>
+				<text class="tab-desc" :class="activeTab == 'out' ? 'text-white-sub' : ''">我欠别人 ({{ outList.length }})</text>
+			</view>
+		</view>
+
+		<view class="summary-bar">
+			<text class="sum-label">合计金额:</text>
+			<text class="sum-val" :class="activeTab=='in'?'text-green':'text-red'">¥ {{ formatNum(currentTotal) }}</text>
+		</view>
+
 		<view class="list-box">
 			<view v-for="(c, index) in currentList" :key="index" class="card">
-				<view class="row-between mb-2"><view class="user-row"><view class="avatar"><text class="avatar-text">{{ getFirstChar(c['name']) }}</text></view><view><text class="name">{{ c['name'] }}</text><text class="phone">{{ c['phone'] || '无电话' }}</text></view></view><text class="money" :class="activeTab=='in'?'text-green':'text-red'">¥ {{ formatNum(Math.abs(parseFloat(c['balance']))) }}</text></view>
-				<view class="row-right"><button class="btn-mini" @click="openRepay(c)">{{ activeTab == 'in' ? '收款核销' : '付款核销' }}</button></view>
+				<view class="row-between mb-2">
+					<view class="user-row">
+						<view class="avatar">
+							<text class="avatar-text">{{ getFirstChar(c['name']) }}</text>
+						</view>
+						<view>
+							<text class="name">{{ c['name'] }}</text>
+							<text class="phone">{{ c['phone'] || '无电话' }}</text>
+						</view>
+					</view>
+					<text class="money" :class="activeTab=='in'?'text-green':'text-red'">
+						¥ {{ formatNum(Math.abs(parseFloat(c['balance']))) }}
+					</text>
+				</view>
+				
+				<view class="row-right">
+					<button class="btn-mini" @click="openRepay(c)">
+						{{ activeTab == 'in' ? '收款核销' : '付款核销' }}
+					</button>
+				</view>
 			</view>
-			<view v-if="currentList.length == 0" class="empty-tip"><text class="empty-text">暂无相关欠款</text></view>
+			
+			<view v-if="currentList.length == 0" class="empty-tip">
+				<text class="empty-text">暂无相关欠款</text>
+			</view>
 		</view>
+		
 	</scroll-view>
-	<view v-if="showModal" class="modal-mask"><view class="modal-box"><text class="modal-title">{{ activeTab == 'in' ? '收款核销' : '付款核销' }}</text><text class="modal-sub">对象: {{ currentTarget['name'] }}</text><view class="input-box"><text class="currency">¥</text><input class="input-big" type="digit" v-model="repayAmount" placeholder="0.00" /></view><view class="account-select"><picker mode="selector" :range="accountNames" @change="onAccountChange"><view class="picker-inner"><text>{{ currentAccountName }}</text><text>▼</text></view></picker></view><view class="modal-btns"><button class="btn-cancel" @click="showModal = false">取消</button><button class="btn-confirm" @click="confirmRepay">确认</button></view></view></view>
+
+	<view v-if="showModal" class="modal-mask">
+		<view class="modal-box">
+			<text class="modal-title">{{ activeTab == 'in' ? '收款核销' : '付款核销' }}</text>
+			<text class="modal-sub">对象: {{ currentTarget['name'] }}</text>
+			
+			<view class="input-box">
+				<text class="currency">¥</text>
+				<input class="input-big" type="digit" v-model="repayAmount" placeholder="0.00" />
+			</view>
+			
+			<view class="account-select">
+				<picker mode="selector" :range="accountNames" @change="onAccountChange">
+					<view class="picker-inner">
+						<text>{{ currentAccountName }}</text>
+						<text>▼</text>
+					</view>
+				</picker>
+			</view>
+			
+			<view class="modal-btns">
+				<button class="btn-cancel" @click="showModal = false">取消</button>
+				<button class="btn-confirm" @click="confirmRepay">确认</button>
+			</view>
+		</view>
+	</view>
 </template>
+
 <script>
 	import { request } from '@/common/api.js';
+
 	export default {
-		data() { return { activeTab: 'in', contacts: [], accounts: [], accountNames: [], currentAccountName: '选择资金账户', selectAccountId: '', showModal: false, currentTarget: {} as any, repayAmount: '' } },
-		computed: { inList(): any[] { return this.contacts.filter((c: any): boolean => parseFloat(c['balance']) < 0); }, outList(): any[] { return this.contacts.filter((c: any): boolean => parseFloat(c['balance']) > 0); }, currentList(): any[] { return this.activeTab == 'in' ? this.inList : this.outList; }, currentTotal(): number { let sum = 0; this.currentList.forEach((c: any) => { sum += Math.abs(parseFloat(c['balance'])); }); return sum; } },
-		onShow() { this.loadData(); },
+		data() {
+			return {
+				activeTab: 'in', // in=应收, out=应付
+				contacts: [],
+				accounts: [], accountNames: [], currentAccountName: '选择资金账户',
+				selectAccountId: '',
+				showModal: false, currentTarget: {} as any, repayAmount: ''
+			}
+		},
+		computed: {
+			inList(): any[] {
+				// ⚠️ 逻辑修正：余额 > 0 是应收 (别人欠我)
+				return this.contacts.filter((c: any): boolean => parseFloat(c['balance']) > 0);
+			},
+			outList(): any[] {
+				// ⚠️ 逻辑修正：余额 < 0 是应付 (我欠别人)
+				return this.contacts.filter((c: any): boolean => parseFloat(c['balance']) < 0);
+			},
+			currentList(): any[] {
+				return this.activeTab == 'in' ? this.inList : this.outList;
+			},
+			currentTotal(): number {
+				let sum = 0;
+				this.currentList.forEach((c: any) => {
+					sum += Math.abs(parseFloat(c['balance']));
+				});
+				return sum;
+			}
+		},
+		onShow() {
+			// ⚠️ 强刷
+			this.loadData();
+		},
 		methods: {
-			async loadData() { try { const cRes = await request({ url: '/api/contacts/' }); const aRes = await request({ url: '/api/analysis/accounting/' }); if(cRes) this.contacts = (cRes as any)['results'] || cRes; if(aRes) { this.accounts = (aRes as any)['accounts']; this.accountNames = this.accounts.map((a: any): string => a['name']); if(this.accounts.length > 0) { this.selectAccountId = this.accounts[0]['id']; this.currentAccountName = this.accounts[0]['name']; } } } catch(e) {} },
-			switchTab(key: string) { this.activeTab = key; }, formatNum(num: any): string { return parseFloat(num || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2}); }, getFirstChar(name: any): string { return String(name || '').substring(0, 1); }, onAccountChange(e: any) { let index = e.detail.value as number; let acc = this.accounts[index]; this.selectAccountId = acc['id']; this.currentAccountName = acc['name']; }, openRepay(c: any) { this.currentTarget = c; this.repayAmount = ''; this.showModal = true; }, async confirmRepay() { if(!this.repayAmount) return uni.showToast({title:'请输入金额', icon:'none'}); if(!this.selectAccountId) return uni.showToast({title:'请选账户', icon:'none'}); try { let id = this.currentTarget['id']; await request({ url: `/api/contacts/${id}/repay/`, method: 'POST', data: { amount: this.repayAmount, account_id: this.selectAccountId, action_type: this.activeTab } }); uni.showToast({ title: '核销成功' }); this.showModal = false; this.loadData(); } catch(e) { uni.showToast({ title: '失败', icon: 'none' }); } }
+			async loadData() {
+				try {
+					const cRes = await request({ url: `/api/contacts/?t=${Date.now()}` });
+					const aRes = await request({ url: '/api/analysis/accounting/' });
+					if(cRes) {
+						let list = (cRes as any)['results'] || cRes;
+						this.contacts = list as any[];
+					}
+					if(aRes) {
+						this.accounts = (aRes as any)['accounts'];
+						this.accountNames = this.accounts.map((a: any): string => a['name']);
+						if(this.accounts.length > 0) {
+							this.selectAccountId = this.accounts[0]['id'];
+							this.currentAccountName = this.accounts[0]['name'];
+						}
+					}
+				} catch(e) {}
+			},
+			switchTab(key: string) { this.activeTab = key; },
+			formatNum(num: any): string { return parseFloat(num || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2}); },
+			getFirstChar(name: any): string { return String(name || '').substring(0, 1); },
+			onAccountChange(e: any) { let index = e.detail.value as number; let acc = this.accounts[index]; this.selectAccountId = acc['id']; this.currentAccountName = acc['name']; },
+			openRepay(c: any) { this.currentTarget = c; this.repayAmount = ''; this.showModal = true; },
+			async confirmRepay() {
+				if(!this.repayAmount) return uni.showToast({title:'请输入金额', icon:'none'});
+				if(!this.selectAccountId) return uni.showToast({title:'请选账户', icon:'none'});
+				
+				try {
+					let id = this.currentTarget['id'];
+					await request({
+						url: `/api/contacts/${id}/repay/`,
+						method: 'POST',
+						data: {
+							amount: this.repayAmount,
+							account_id: this.selectAccountId,
+							action_type: this.activeTab // 'in' or 'out'
+						}
+					});
+					uni.showToast({ title: '核销成功' });
+					this.showModal = false;
+					this.loadData();
+				} catch(e) {
+					uni.showToast({ title: '失败', icon: 'none' });
+				}
+			}
 		}
 	}
 </script>
+
 <style>
+/* 样式保持之前的，无需变动，直接使用即可 */
 	.page { padding: 30rpx; background-color: #f8faff; height: 100%; }
-	.tab-box { flex-direction: row; background-color: #e2e8f0; border-radius: 20rpx; padding: 8rpx; margin-bottom: 30rpx; } .tab-item { flex: 1; align-items: center; justify-content: center; padding: 20rpx 0; border-radius: 16rpx; } .tab-active-green { background-color: #10b981; shadow: 0 4rpx 10rpx rgba(16,185,129,0.3); } .tab-active-red { background-color: #ef4444; shadow: 0 4rpx 10rpx rgba(239,68,68,0.3); }
+	.tab-box { flex-direction: row; background-color: #e2e8f0; border-radius: 20rpx; padding: 8rpx; margin-bottom: 30rpx; }
+	.tab-item { flex: 1; align-items: center; justify-content: center; padding: 20rpx 0; border-radius: 16rpx; }
+	.tab-active-green { background-color: #10b981; shadow: 0 4rpx 10rpx rgba(16,185,129,0.3); }
+	.tab-active-red { background-color: #ef4444; shadow: 0 4rpx 10rpx rgba(239,68,68,0.3); }
 	.tab-title { font-size: 30rpx; font-weight: bold; margin-bottom: 4rpx; } .tab-desc { font-size: 20rpx; } .text-white { color: #fff; } .text-white-sub { color: rgba(255,255,255,0.8); } .text-gray { color: #64748b; }
 	.summary-bar { flex-direction: row; justify-content: space-between; align-items: center; padding: 0 20rpx; margin-bottom: 20rpx; } .sum-label { font-size: 28rpx; color: #64748b; font-weight: bold; } .sum-val { font-size: 36rpx; font-weight: 900; }
 	.card { background-color: #fff; border-radius: 24rpx; padding: 30rpx; margin-bottom: 24rpx; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02); } .row-between { flex-direction: row; justify-content: space-between; align-items: center; } .mb-2 { margin-bottom: 20rpx; }

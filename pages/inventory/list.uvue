@@ -20,8 +20,18 @@
 	export default {
 		data() { return { products: [], keyword: '' } },
 		computed: { filteredList(): any[] { if(!this.keyword) return this.products; let k = this.keyword.toLowerCase(); return this.products.filter((p: any): boolean => { let name = (p['name'] || '').toString().toLowerCase(); let code = (p['zencode'] || '').toString().toLowerCase(); let note = (p['note'] || '').toString().toLowerCase(); return name.includes(k) || code.includes(k) || note.includes(k); }); } },
+		// ⚠️ 强刷
 		onShow() { this.loadData(); },
-		methods: { async loadData() { try { const res = await request({ url: '/api/products/?status=IN_STOCK' }); if(res) { let list = (res as any)['results'] || res; this.products = list as any[]; } } catch(e) {} }, formatDate(str: any): string { if(!str) return ''; return String(str).substring(0, 10); }, goDetail(p: any) { uni.navigateTo({ url: `/pages/inventory/detail?id=${p['id']}` }); } }
+		methods: { 
+			async loadData() { 
+				try { 
+					const res = await request({ url: `/api/products/?status=IN_STOCK&t=${Date.now()}` }); 
+					if(res) { let list = (res as any)['results'] || res; this.products = list as any[]; } 
+				} catch(e) {} 
+			}, 
+			formatDate(str: any): string { if(!str) return ''; return String(str).substring(0, 10); }, 
+			goDetail(p: any) { uni.navigateTo({ url: `/pages/inventory/detail?id=${p['id']}` }); } 
+		}
 	}
 </script>
 <style>

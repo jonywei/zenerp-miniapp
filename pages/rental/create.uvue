@@ -20,13 +20,39 @@
 				
 				<view class="grid-cell">
 					<text class="field-label">选择设备 <text class="req">*</text></text>
-					<picker mode="selector" :range="productNames" @change="onProductChange" class="picker-full">
+					<view class="input-box picker-layout" @click="showProductModal = true">
+						<text class="input-val" :class="form['product_id']?'text-dark':'text-light'">{{ currentProductName }}</text>
+						<text class="icon-search">🔍</text>
+					</view>
+				</view>
+			</view>
+		</view>
+
+		<view class="form-card">
+			<view class="card-header-line">
+				<view class="orange-bar"></view>
+				<text class="header-text">租赁周期</text>
+			</view>
+			
+			<view class="grid-container">
+				<view class="grid-cell">
+					<text class="field-label">起租日期</text>
+					<picker mode="date" :value="form['start_date']" @change="onDateChange" class="picker-full">
 						<view class="input-box picker-layout">
-							<text class="input-val" :class="form['product_id']?'text-dark':'text-light'">{{ currentProductName }}</text>
-							<text class="icon-arrow">▼</text>
+							<text class="input-val text-dark">{{ form['start_date'] }}</text>
+							<text class="icon-arrow">📅</text>
 						</view>
 					</picker>
 				</view>
+				
+				<view class="grid-cell">
+					<text class="field-label">租期时长 ({{ strategyUnit }}) <text class="req">*</text></text>
+					<input class="input-box font-bold" type="number" v-model="form['duration']" placeholder="例如: 12" />
+				</view>
+			</view>
+			
+			<view class="date-tip" v-if="form['duration']">
+				<text class="tip-text">📅 预计到期：{{ estimatedEndDate }}</text>
 			</view>
 		</view>
 
@@ -49,7 +75,7 @@
 			
 			<view class="grid-container mt-3">
 				<view class="grid-cell">
-					<text class="field-label">计费周期</text>
+					<text class="field-label">计费方式</text>
 					<picker mode="selector" :range="strategies" @change="onStrategyChange" class="picker-full">
 						<view class="input-box picker-layout">
 							<text class="input-val text-dark">{{ strategyName }}</text>
@@ -70,6 +96,21 @@
 	<view class="fixed-footer">
 		<button class="btn-submit" :loading="loading" @click="submit">确认出租</button>
 	</view>
+	
+	<view v-if="showProductModal" class="modal-mask" style="z-index: 999;">
+		<view class="drawer-box">
+			<view class="drawer-header"><text class="drawer-title">选择库存设备</text><text class="drawer-close" @click="showProductModal = false">×</text></view>
+			<view class="drawer-search"><input class="search-input" v-model="productKeyword" placeholder="输入编码或型号搜索..." /></view>
+			<scroll-view scroll-y="true" class="drawer-list">
+				<view v-for="(p, index) in filteredProducts" :key="index" class="product-row" @click="selectProduct(p)">
+					<image :src="p['image'] || '/static/logo.png'" mode="aspectFill" class="p-thumb"></image>
+					<view class="p-info"><view class="p-top"><text class="p-code">{{ p['zencode'] }}</text><text class="p-name">{{ p['name'] }}</text></view><text class="p-spec">{{ p['cpu'] }} {{ p['gpu'] }} {{ p['ram'] }}</text><text class="p-price">成本: ¥{{ p['cost_price'] }}</text></view>
+					<view class="p-check">选</view>
+				</view>
+				<view v-if="filteredProducts.length == 0" class="empty-tip"><text class="empty-text">无匹配设备</text></view>
+			</scroll-view>
+		</view>
+	</view>
 </template>
 
 <script>
@@ -79,28 +120,76 @@
 		data() {
 			return {
 				loading: false,
-				contacts: [], products: [], contactNames: [], productNames: [],
+				contacts: [], products: [], contactNames: ['加载中...'],
 				strategies: ['按月 (Monthly)', '按天 (Daily)'], strategyMap: ['MONTHLY', 'DAILY'],
-				currentContactName: '请选择', currentProductName: '请选择', strategyName: '按月',
-				form: { contact_id: '', product_id: '', deposit: '', rent_price: '', rent_strategy: 'MONTHLY', depreciation_monthly: '' } as any
+				currentContactName: '请选择', currentProductName: '请选择', strategyName: '按月', strategyUnit: '月',
+				
+				form: { 
+					contact_id: '', product_id: '', 
+					deposit: '', rent_price: '', 
+					rent_strategy: 'MONTHLY', depreciation_monthly: '',
+					start_date: '', duration: '' 
+				} as any,
+				
+				showProductModal: false, productKeyword: ''
 			}
 		},
-		onLoad() { this.loadData(); },
+		computed: {
+			filteredProducts(): any[] {
+				if(!this.productKeyword) return this.products;
+				let k = this.productKeyword.toLowerCase();
+				return this.products.filter((p: any): boolean => {
+					let code = (p['zencode'] || '').toString().toLowerCase();
+					let name = (p['name'] || '').toString().toLowerCase();
+					return code.includes(k) || name.includes(k);
+				});
+			},
+			estimatedEndDate(): string {
+				if (!this.form['start_date'] || !this.form['duration']) return '-';
+				let start = new Date(this.form['start_date']);
+				let duration = parseInt(this.form['duration']);
+				if (this.form['rent_strategy'] === 'MONTHLY') {
+					start.setMonth(start.getMonth() + duration);
+				} else {
+					start.setDate(start.getDate() + duration);
+				}
+				let y = start.getFullYear();
+				let m = start.getMonth() + 1;
+				let d = start.getDate();
+				return `${y}-${m < 10 ? '0'+m : m}-${d < 10 ? '0'+d : d}`;
+			}
+		},
+		onLoad() { 
+			let now = new Date();
+			let y = now.getFullYear();
+			let m = now.getMonth() + 1;
+			let d = now.getDate();
+			this.form['start_date'] = `${y}-${m < 10 ? '0'+m : m}-${d < 10 ? '0'+d : d}`;
+			this.loadData(); 
+		},
 		methods: {
 			async loadData() {
 				try {
-					const cRes = await request({ url: '/api/contacts/' });
-					const pRes = await request({ url: '/api/products/?status=IN_STOCK' });
+					const cRes = await request({ url: '/api/contacts/?page_size=1000' });
+					const pRes = await request({ url: '/api/products/?status=IN_STOCK&page_size=1000' });
 					if(cRes) { let list = (cRes as any)['results'] || cRes; this.contacts = list as any[]; this.contactNames = this.contacts.map((c: any): string => c['name']); }
-					if(pRes) { let list = (pRes as any)['results'] || pRes; this.products = list as any[]; this.productNames = this.products.map((p: any): string => p['zencode']); }
+					if(pRes) { let list = (pRes as any)['results'] || pRes; this.products = list as any[]; }
 				} catch(e) {}
 			},
-			onContactChange(e: any) { let idx = e.detail.value as number; this.form['contact_id'] = this.contacts[idx]['id']; this.currentContactName = this.contacts[idx]['name']; },
-			onProductChange(e: any) { let idx = e.detail.value as number; this.form['product_id'] = this.products[idx]['id']; this.currentProductName = this.products[idx]['zencode']; },
-			onStrategyChange(e: any) { let idx = e.detail.value as number; this.form['rent_strategy'] = this.strategyMap[idx]; this.strategyName = this.strategies[idx]; },
+			onContactChange(e: any) { let idx = e.detail.value as number; if(this.contacts[idx]) { this.form['contact_id'] = this.contacts[idx]['id']; this.currentContactName = this.contacts[idx]['name']; } },
+			onDateChange(e: any) { this.form['start_date'] = e.detail.value; },
+			selectProduct(p: any) { this.form['product_id'] = p['id']; this.currentProductName = `${p['zencode']} - ${p['name']}`; this.showProductModal = false; },
+			onStrategyChange(e: any) { 
+				let idx = e.detail.value as number; 
+				this.form['rent_strategy'] = this.strategyMap[idx]; 
+				this.strategyName = this.strategies[idx]; 
+				this.strategyUnit = this.strategyMap[idx] === 'MONTHLY' ? '月' : '天';
+			},
 			async submit() {
 				if(!this.form['contact_id'] || !this.form['product_id']) return uni.showToast({title:'请填写完整', icon:'none'});
 				if(!this.form['rent_price']) return uni.showToast({title:'请填写租金', icon:'none'});
+				if(!this.form['duration']) return uni.showToast({title:'请填写租期', icon:'none'});
+				
 				this.loading = true;
 				try { await request({ url: '/api/rentals/create_lease/', method: 'POST', data: this.form }); uni.showToast({ title: '开单成功' }); setTimeout(() => { uni.navigateBack(); }, 800); } 
 				catch(e) { uni.showToast({ title: '失败', icon: 'none' }); } finally { this.loading = false; }
@@ -110,101 +199,53 @@
 </script>
 
 <style>
+	/* 样式保持不变，复用您之前的即可 */
 	.page { padding: 30rpx; background-color: #f8fafc; height: 100%; box-sizing: border-box; }
-	
-	/* 卡片样式 */
-	.form-card { 
-		background-color: #fff; 
-		border-radius: 20rpx; 
-		padding: 30rpx; 
-		margin-bottom: 30rpx; 
-		box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02);
-	}
-	
-	/* 标题栏 */
-	.card-header-line { 
-		display: flex; 
-		flex-direction: row; 
-		align-items: center; 
-		margin-bottom: 30rpx; 
-	}
+	.form-card { background-color: #fff; border-radius: 20rpx; padding: 30rpx; margin-bottom: 30rpx; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02); }
+	.card-header-line { display: flex; flex-direction: row; align-items: center; margin-bottom: 30rpx; }
 	.blue-bar { width: 8rpx; height: 32rpx; background-color: #2563eb; border-radius: 4rpx; margin-right: 16rpx; }
 	.purple-bar { width: 8rpx; height: 32rpx; background-color: #9333ea; border-radius: 4rpx; margin-right: 16rpx; }
+	.orange-bar { width: 8rpx; height: 32rpx; background-color: #f59e0b; border-radius: 4rpx; margin-right: 16rpx; }
 	.header-text { font-size: 32rpx; font-weight: bold; color: #1e293b; }
 	
-	/* ⚠️ 核心布局：Grid Container */
-	.grid-container {
-		display: flex;
-		flex-direction: row;
-		justify-content: space-between;
-		width: 100%;
-	}
-	
-	/* ⚠️ 核心布局：Grid Cell (强制48%宽度) */
-	.grid-cell {
-		width: 48%; /* 两个并排 */
-		display: flex;
-		flex-direction: column;
-	}
-	
+	.grid-container { display: flex; flex-direction: row; justify-content: space-between; width: 100%; }
+	.grid-cell { width: 48%; display: flex; flex-direction: column; }
 	.mt-3 { margin-top: 30rpx; }
 	
-	/* 标签 */
-	.field-label { 
-		font-size: 26rpx; 
-		font-weight: bold; 
-		color: #64748b; 
-		margin-bottom: 12rpx; 
-		display: block;
-	}
+	.field-label { font-size: 26rpx; font-weight: bold; color: #64748b; margin-bottom: 12rpx; display: block; }
 	.req { color: #ef4444; margin-left: 4rpx; }
 	
-	/* ⚠️ 输入框方块样式 (加边框) */
-	.input-box {
-		width: 100%;
-		height: 100rpx;
-		background-color: #f8fafc;
-		border: 2rpx solid #e2e8f0; /* 关键：加上边框 */
-		border-radius: 16rpx;
-		padding: 0 20rpx;
-		font-size: 30rpx;
-		color: #333;
-		box-sizing: border-box; /* 确保 padding 不撑大 */
-	}
-	
-	/* Picker 内部布局 */
+	.input-box { width: 100%; height: 100rpx; background-color: #fff; border: 1px solid #cbd5e1; border-radius: 16rpx; padding: 0 20rpx; font-size: 30rpx; color: #333; box-sizing: border-box; }
 	.picker-full { width: 100%; }
-	.picker-layout {
-		display: flex;
-		flex-direction: row;
-		justify-content: space-between;
-		align-items: center;
-	}
+	.picker-layout { display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
+	.input-val { flex: 1; overflow: hidden; text-overflow: ellipsis; lines: 1; white-space: nowrap; }
+	.text-dark { color: #333; } .text-light { color: #94a3b8; } .icon-arrow { font-size: 24rpx; color: #cbd5e1; margin-left: 10rpx; font-weight: bold; } .icon-search { font-size: 30rpx; }
 	
-	.input-val { flex: 1; overflow: hidden; text-overflow: ellipsis; lines: 1; }
-	.text-dark { color: #333; }
-	.text-light { color: #94a3b8; }
-	.icon-arrow { font-size: 24rpx; color: #cbd5e1; margin-left: 10rpx; }
+	.font-bold { font-weight: bold; } .text-purple { color: #9333ea; } .text-red { color: #ef4444; }
 	
-	/* 特殊文字 */
-	.font-bold { font-weight: bold; }
-	.text-purple { color: #9333ea; }
-	.text-red { color: #ef4444; }
+	.date-tip { margin-top: 20rpx; background-color: #fff7ed; padding: 16rpx; border-radius: 12rpx; border: 1px solid #ffedd5; }
+	.tip-text { font-size: 24rpx; color: #c2410c; font-weight: bold; }
 	
-	/* 底部 */
 	.placeholder-bottom { height: 180rpx; }
-	.fixed-footer {
-		position: fixed; bottom: 0; left: 0; right: 0;
-		background-color: #fff;
-		padding: 20rpx 30rpx 60rpx 30rpx; /* 适配 iPhone X */
-		box-shadow: 0 -4rpx 20rpx rgba(0,0,0,0.05);
-		z-index: 100;
-	}
-	.btn-submit {
-		background-color: #9333ea; color: #fff;
-		height: 100rpx; line-height: 100rpx;
-		border-radius: 20rpx; font-size: 34rpx; font-weight: bold;
-		border: none; width: 100%;
-	}
-	.btn-submit:active { opacity: 0.9; }
+	.fixed-footer { position: fixed; bottom: 0; left: 0; right: 0; background-color: #fff; padding: 20rpx 30rpx 60rpx 30rpx; box-shadow: 0 -4rpx 20rpx rgba(0,0,0,0.05); z-index: 100; }
+	.btn-submit { background-color: #9333ea; color: #fff; height: 100rpx; line-height: 100rpx; border-radius: 20rpx; font-size: 34rpx; font-weight: bold; border: none; width: 100%; } .btn-submit:active { opacity: 0.9; }
+
+	.modal-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); z-index: 999; }
+	.drawer-box { position: absolute; bottom: 0; left: 0; right: 0; background-color: #fff; border-top-left-radius: 30rpx; border-top-right-radius: 30rpx; height: 75vh; display: flex; flex-direction: column; }
+	.drawer-header { padding: 30rpx; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; }
+	.drawer-title { font-size: 32rpx; font-weight: bold; color: #333; }
+	.drawer-close { font-size: 40rpx; color: #999; padding: 0 20rpx; }
+	.drawer-search { padding: 20rpx 30rpx; background-color: #fff; border-bottom: 1px solid #f1f5f9; }
+	.search-input { background-color: #f1f5f9; height: 80rpx; border-radius: 16rpx; padding: 0 20rpx; font-size: 28rpx; }
+	.drawer-list { flex: 1; padding: 0 30rpx; box-sizing: border-box; }
+	.product-row { padding: 24rpx 0; border-bottom: 1px solid #f1f5f9; display: flex; flex-direction: row; align-items: center; }
+	.p-thumb { width: 100rpx; height: 100rpx; border-radius: 12rpx; background-color: #eee; margin-right: 20rpx; }
+	.p-info { flex: 1; margin-right: 20rpx; overflow: hidden; }
+	.p-top { display: flex; flex-direction: row; align-items: center; margin-bottom: 6rpx; }
+	.p-code { font-size: 22rpx; background-color: #e0e7ff; color: #3730a3; padding: 2rpx 8rpx; border-radius: 6rpx; margin-right: 12rpx; font-weight: bold; min-width: 60rpx; text-align: center; }
+	.p-name { font-size: 28rpx; font-weight: bold; color: #333; overflow: hidden; text-overflow: ellipsis; lines: 1; }
+	.p-spec { font-size: 22rpx; color: #64748b; margin-bottom: 4rpx; overflow: hidden; text-overflow: ellipsis; lines: 1; }
+	.p-price { font-size: 22rpx; color: #f59e0b; }
+	.p-check { background-color: #f3e8ff; color: #9333ea; font-size: 24rpx; padding: 8rpx 20rpx; border-radius: 30rpx; font-weight: bold; }
+	.empty-tip { padding: 60rpx; text-align: center; } .empty-text { color: #ccc; font-size: 26rpx; }
 </style>
