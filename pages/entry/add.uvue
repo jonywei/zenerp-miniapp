@@ -1,3 +1,178 @@
+<template>
+	<scroll-view class="page" scroll-y="true">
+		
+		<view class="form-card">
+			<view class="card-header-line">
+				<view class="blue-bar"></view>
+				<text class="header-text">入库来源</text>
+			</view>
+			
+			<view class="grid-container">
+				<view class="grid-cell" style="width: 100%;">
+					<text class="field-label">选择供应商</text>
+					<view class="row-center">
+						<picker mode="selector" :range="contactNames" @change="onContactChange" class="flex-1">
+							<view class="input-box picker-layout">
+								<text class="input-val" :class="form['supplier_id']!='0'?'text-dark':'text-light'">{{ currentContactName }}</text>
+								<text class="icon-arrow">▼</text>
+							</view>
+						</picker>
+						<view class="add-btn" @click="showAddModal=true">+</view>
+					</view>
+				</view>
+			</view>
+		</view>
+
+		<view class="form-card">
+			<view class="card-header-line">
+				<view class="orange-bar"></view>
+				<text class="header-text">商品详情</text>
+			</view>
+			
+			<view class="grid-container mb-3">
+				<view v-for="(item, index) in types" :key="index" class="type-cell" @click="form['category'] = item['key']">
+					<view class="type-btn" :class="form['category'] == item['key'] ? 'btn-active' : 'btn-normal'">
+						<text class="type-text" :class="form['category'] == item['key'] ? 'text-white' : 'text-gray'">{{ item['name'] }}</text>
+					</view>
+				</view>
+			</view>
+			
+			<view class="upload-box" @click="chooseImage">
+				<image v-if="previewUrl" :src="previewUrl" mode="aspectFill" class="upload-img"></image>
+				<view v-else class="upload-placeholder">
+					<text class="camera-icon">📷</text>
+					<text class="camera-text">点击拍摄/上传图片</text>
+				</view>
+			</view>
+			
+			<view v-if="form['category'] == 'ZJ'">
+				<view class="grid-container">
+					<view class="grid-cell">
+						<text class="field-label">CPU</text>
+						<input class="input-box" v-model="form['cpu']" placeholder="i5-12400F" />
+					</view>
+					<view class="grid-cell">
+						<text class="field-label">显卡</text>
+						<input class="input-box" v-model="form['gpu']" placeholder="RTX3060" />
+					</view>
+				</view>
+				<view class="grid-container mt-2">
+					<view class="grid-cell">
+						<text class="field-label">内存</text>
+						<input class="input-box" v-model="form['ram']" placeholder="16G" />
+					</view>
+					<view class="grid-cell">
+						<text class="field-label">硬盘</text>
+						<input class="input-box" v-model="form['disk']" placeholder="512G" />
+					</view>
+				</view>
+				<view class="grid-container mt-2">
+					<view class="grid-cell" style="width: 100%;">
+						<text class="field-label">备注 (外观/机箱)</text>
+						<input class="input-box" v-model="form['note']" placeholder="例如：白色海景房 / 99新" />
+					</view>
+				</view>
+			</view>
+			
+			<view v-else class="grid-container">
+				<view class="grid-cell" style="width: 100%;">
+					<text class="field-label">商品名称/型号</text>
+					<input class="input-box" v-model="form['name']" placeholder="请输入商品名称..." />
+				</view>
+			</view>
+		</view>
+
+		<view class="form-card">
+			<view class="card-header-line">
+				<view class="purple-bar"></view>
+				<text class="header-text">成本与支付</text>
+			</view>
+			
+			<view class="grid-container">
+				<view class="grid-cell">
+					<text class="field-label">入库成本 (¥) <text class="req">*</text></text>
+					<input class="input-box font-bold text-red" type="digit" v-model="form['cost_price']" placeholder="0.00" />
+				</view>
+				<view class="grid-cell">
+					<text class="field-label">实付金额 (¥)</text>
+					<input class="input-box font-bold" type="digit" v-model="form['paid_amount']" placeholder="0 (挂账)" />
+				</view>
+			</view>
+			
+			<view class="grid-container mt-2" v-if="showAccountSelect">
+				<view class="grid-cell" style="width: 100%;">
+					<text class="field-label">付款账户</text>
+					<picker mode="selector" :range="accountNames" @change="onAccountChange" class="picker-full">
+						<view class="input-box picker-layout">
+							<text class="input-val text-dark">{{ currentAccountName }}</text>
+							<text class="icon-arrow">▼</text>
+						</view>
+					</picker>
+				</view>
+			</view>
+			
+			<view class="status-tip" v-if="debtAmount > 0">
+				<text class="tip-text text-red">⚠️ 剩余 ¥{{ debtAmount.toFixed(2) }} 计入应付账款</text>
+			</view>
+			<view class="status-tip bg-green-light" v-else-if="form['cost_price'] && debtAmount == 0">
+				<text class="tip-text text-green">✅ 全额付清</text>
+			</view>
+			
+			<view class="grid-container mt-3 pt-3 border-top">
+				<view class="grid-cell">
+					<text class="field-label">同行底价 (¥)</text>
+					<input class="input-box" type="digit" v-model="form['peer_price']" placeholder="选填" />
+				</view>
+				<view class="grid-cell">
+					<text class="field-label">零售指导 (¥)</text>
+					<input class="input-box" type="digit" v-model="form['retail_price']" placeholder="选填" />
+				</view>
+			</view>
+		</view>
+		
+		<view class="placeholder-bottom"></view>
+	</scroll-view>
+
+	<view class="fixed-footer">
+		<button class="btn-submit" :loading="loading" @click="submit">确认入库存档</button>
+	</view>
+
+	<view v-if="showAddModal" class="modal-mask" style="z-index: 9999;">
+		<view class="modal-center">
+			<view class="modal-title">新增供应商</view>
+			<input class="modal-input" v-model="newContact['name']" placeholder="姓名 (必填)" />
+			<input class="modal-input" v-model="newContact['phone']" placeholder="电话" type="number" />
+			<input class="modal-input" v-model="newContact['address']" placeholder="地址/档口" />
+			<view class="modal-btns">
+				<view class="modal-btn cancel" @click="showAddModal=false">取消</view>
+				<view class="modal-btn confirm" @click="addContact">保存</view>
+			</view>
+		</view>
+	</view>
+	
+	<view v-if="showSuccess" class="modal-mask" style="z-index: 9999;">
+		<view class="modal-center">
+			<view class="success-icon">✅</view>
+			<view class="modal-title">入库成功</view>
+			
+			<view class="code-box">
+				<text class="code-label">系统编码</text>
+				<text class="code-val">{{ result['zencode'] }}</text>
+			</view>
+			
+			<view class="name-box">
+				<text class="name-val">{{ result['name'] }}</text>
+			</view>
+			
+			<view v-if="!result['has_price']" class="warn-box">
+				<text class="warn-text">⚠️ 未录入售价，请后续补充</text>
+			</view>
+			
+			<button class="btn-primary" @click="resetForm">继续下一单</button>
+		</view>
+	</view>
+</template>
+
 <script>
 	import { request } from '@/common/api.js';
 	const UPLOAD_URL = 'https://erp.corezen.site/api/products/';
@@ -5,48 +180,216 @@
 	export default {
 		data() {
 			return {
-				loading: false, types: [{ key: 'ZJ', name: '整机' }, { key: 'SJ', name: '散件' }, { key: 'XS', name: '显示器' }, { key: 'ZX', name: '杂项' }],
+				loading: false,
+				types: [{ key: 'ZJ', name: '整机' }, { key: 'SJ', name: '散件' }, { key: 'XS', name: '显示器' }, { key: 'ZX', name: '杂项' }],
 				form: { category: 'ZJ', supplier_id: '', name: '', cpu: '', gpu: '', ram: '', disk: '', note: '', cost_price: '', paid_amount: '', account_id: '', peer_price: '', retail_price: '' } as any,
-				contacts: [], accounts: [], contactNames: ['加载中...'], accountNames: [], currentContactName: '请选择...', currentAccountName: '选择支付账户',
-				previewUrl: '', tempFilePath: '', showSuccess: false, showAddModal: false, 
-                // 🟢 修复：增加 result.name 字段
-                result: { zencode: '', name: '', has_price: true } as any, 
-                newContact: { name: '', phone: '', address: '' } as any
+				contacts: [], accounts: [], 
+				contactNames: ['加载中...'], accountNames: [], 
+				currentContactName: '请选择...', currentAccountName: '选择支付账户',
+				previewUrl: '', tempFilePath: '', 
+				showSuccess: false, showAddModal: false, 
+				result: { zencode: '', name: '', has_price: true } as any, 
+				newContact: { name: '', phone: '', address: '' } as any
 			}
 		},
-        // ... (省略中间 methods，保持不变) ...
+		computed: {
+			debtAmount(): number { 
+				let cost = parseFloat(this.form['cost_price'] || '0');
+				let paid = parseFloat(this.form['paid_amount'] || '0'); 
+				return cost - paid; 
+			},
+			showAccountSelect(): boolean { 
+				let paid = parseFloat(this.form['paid_amount'] || '0');
+				return paid > 0; 
+			}
+		},
+		onLoad() { this.loadData(); },
 		methods: {
-            // ... loadData, onContactChange 等保持不变 ...
+			async loadData() {
+				try {
+					const resC = await request({ url: '/api/contacts/?page_size=1000' });
+					const resA = await request({ url: '/api/analysis/accounting/' });
+					if (resC) {
+						let list = (resC as any)['results'] || resC;
+						this.contacts = list as any[];
+						this.contactNames = ['🛒 散客 (无供应商)'];
+						this.contactNames.push(...this.contacts.map((c: any): string => c['name']));
+					}
+					if (resA) {
+						this.accounts = (resA as any)['accounts'];
+						this.accountNames = this.accounts.map((a: any): string => a['name']);
+						if (this.accounts.length > 0) { 
+							this.form['account_id'] = this.accounts[0]['id']; 
+							this.currentAccountName = this.accounts[0]['name'];
+						}
+					}
+				} catch (e) {}
+			},
+			onContactChange(e: any) { 
+				let index = e.detail.value as number; 
+				if (index == 0) { 
+					this.form['supplier_id'] = '0';
+					this.currentContactName = '🛒 散客'; 
+				} else { 
+					let contact = this.contacts[index - 1]; 
+					this.form['supplier_id'] = contact['id']; 
+					this.currentContactName = contact['name'];
+				} 
+			},
+			onAccountChange(e: any) { 
+				let index = e.detail.value as number; 
+				let acc = this.accounts[index]; 
+				this.form['account_id'] = acc['id']; 
+				this.currentAccountName = acc['name'];
+			},
+			chooseImage() { 
+				uni.chooseImage({ count: 1, sizeType: ['compressed'], success: (res) => { this.tempFilePath = res.tempFilePaths[0]; this.previewUrl = res.tempFilePaths[0]; } });
+			},
+			openAddModal() { this.showAddModal = true; },
+			async addContact() {
+				if (!this.newContact['name']) return uni.showToast({title:'姓名必填', icon:'none'});
+				try {
+					const res = await request({ url: '/api/contacts/', method: 'POST', data: this.newContact });
+					uni.showToast({title:'添加成功'});
+					this.showAddModal = false;
+					this.newContact = { name:'', phone:'', address:'' };
+					await this.loadData();
+					if (res && (res as any)['id']) {
+						this.form['supplier_id'] = (res as any)['id'];
+						this.currentContactName = (res as any)['name'];
+					}
+				} catch (e) {}
+			},
 			async submit() { 
-                if (!this.form['supplier_id']) return uni.showToast({title:'必须选供应商', icon:'none'});
-                if (!this.form['cost_price']) return uni.showToast({title:'请填入库成本', icon:'none'}); 
-                if (this.showAccountSelect && !this.form['account_id']) return uni.showToast({title:'实付必须选账户', icon:'none'});
-                // 自动命名逻辑在后端处理，前端只负责传参
-                this.loading = true; 
-                let formData = JSON.parse(JSON.stringify(this.form));
-                
-                // 上传逻辑保持不变...
-                try { 
-                    const res = await request({ url: '/api/products/', method: 'POST', data: formData }); 
-                    this.loading = false;
-                    if (res) this.handleSuccess(res); 
-                } catch(e) { this.loading = false; } 
-            },
+				if (!this.form['supplier_id']) return uni.showToast({title:'必须选供应商', icon:'none'});
+				if (!this.form['cost_price']) return uni.showToast({title:'请填入库成本', icon:'none'}); 
+				if (this.showAccountSelect && !this.form['account_id']) return uni.showToast({title:'实付必须选账户', icon:'none'});
+				
+				this.loading = true; 
+				let formData = JSON.parse(JSON.stringify(this.form));
+				
+				const doRequest = async () => {
+					try { 
+						const res = await request({ url: '/api/products/', method: 'POST', data: formData }); 
+						this.loading = false;
+						if (res) this.handleSuccess(res); 
+					} catch(e) { this.loading = false; }
+				};
+
+				if (this.tempFilePath) { 
+					const sessionId = uni.getStorageSync('sessionid'); 
+					uni.uploadFile({ 
+						url: UPLOAD_URL, filePath: this.tempFilePath, name: 'image', formData: formData, header: { 'Cookie': sessionId ? `sessionid=${sessionId}` : '' }, 
+						success: (uploadRes) => { 
+							this.loading = false; 
+							if (uploadRes.statusCode == 201 || uploadRes.statusCode == 200) { 
+								let data = JSON.parse(uploadRes.data); 
+								this.handleSuccess(data); 
+							} else { uni.showToast({title:'上传失败', icon:'none'}); } 
+						}, 
+						fail: () => { doRequest(); } 
+					});
+				} else { doRequest(); } 
+			},
 			handleSuccess(data: any) { 
-                this.result['zencode'] = data['zencode'];
-                // 🟢 修复：获取并显示商品名称
-                this.result['name'] = data['name']; 
-                let hasPeer = !!this.form['peer_price']; 
-                let hasRetail = !!this.form['retail_price']; 
-                this.result['has_price'] = hasPeer || hasRetail; 
-                this.showSuccess = true;
-            },
+				this.result['zencode'] = data['zencode'];
+				this.result['name'] = data['name'];
+				let hasPeer = !!this.form['peer_price']; 
+				let hasRetail = !!this.form['retail_price']; 
+				this.result['has_price'] = hasPeer || hasRetail; 
+				this.showSuccess = true;
+			},
 			resetForm() { 
-                this.showSuccess = false; 
-                // 清空表单...
-                this.form = { ...this.form, name: '', cpu: '', gpu: '', ram: '', disk: '', note: '', cost_price: '', paid_amount: '' };
-                this.previewUrl = ''; this.tempFilePath = ''; 
-            }
+				this.showSuccess = false; 
+				let cat = this.form['category']; let sup = this.form['supplier_id']; let acc = this.form['account_id'];
+				this.form = { category: cat, supplier_id: sup, name: '', cpu: '', gpu: '', ram: '', disk: '', note: '', cost_price: '', paid_amount: '', account_id: acc, peer_price: '', retail_price: '' };
+				this.previewUrl = ''; this.tempFilePath = ''; 
+			}
 		}
 	}
 </script>
+
+<style>
+	/* 1. 全局布局 */
+	.page { padding: 30rpx; background-color: #f8fafc; height: 100vh; box-sizing: border-box; }
+	.form-card { background-color: #fff; border-radius: 20rpx; padding: 30rpx; margin-bottom: 30rpx; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02); }
+	
+	/* 2. 标题条样式 */
+	.card-header-line { display: flex; flex-direction: row; align-items: center; margin-bottom: 30rpx; }
+	.blue-bar { width: 8rpx; height: 32rpx; background-color: #2563eb; border-radius: 4rpx; margin-right: 16rpx; }
+	.purple-bar { width: 8rpx; height: 32rpx; background-color: #9333ea; border-radius: 4rpx; margin-right: 16rpx; }
+	.orange-bar { width: 8rpx; height: 32rpx; background-color: #f59e0b; border-radius: 4rpx; margin-right: 16rpx; }
+	.header-text { font-size: 32rpx; font-weight: bold; color: #1e293b; }
+	
+	/* 3. 网格与输入框 */
+	.grid-container { display: flex; flex-direction: row; justify-content: space-between; width: 100%; gap: 20rpx; }
+	.grid-cell { flex: 1; display: flex; flex-direction: column; }
+	.mt-2 { margin-top: 20rpx; } .mb-3 { margin-bottom: 30rpx; }
+	
+	.field-label { font-size: 26rpx; font-weight: bold; color: #64748b; margin-bottom: 12rpx; display: block; }
+	.req { color: #ef4444; margin-left: 4rpx; }
+	
+	.input-box { width: 100%; height: 90rpx; background-color: #fff; border: 1px solid #cbd5e1; border-radius: 16rpx; padding: 0 20rpx; font-size: 30rpx; color: #333; box-sizing: border-box; display: flex; align-items: center; }
+	
+	.picker-full { width: 100%; }
+	.picker-layout { display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
+	.input-val { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.text-dark { color: #333; } .text-light { color: #94a3b8; } 
+	.icon-arrow { font-size: 24rpx; color: #cbd5e1; margin-left: 10rpx; font-weight: bold; }
+	
+	.row-center { display: flex; flex-direction: row; align-items: center; gap: 20rpx; }
+	.flex-1 { flex: 1; }
+	.add-btn { width: 80rpx; height: 90rpx; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 16rpx; display: flex; align-items: center; justify-content: center; color: #2563eb; font-size: 40rpx; font-weight: bold; }
+	
+	/* 4. 分类按钮 */
+	.type-cell { flex: 1; }
+	.type-btn { height: 80rpx; display: flex; align-items: center; justify-content: center; border-radius: 16rpx; transition: all 0.2s; }
+	.btn-active { background-color: #2563eb; box-shadow: 0 4rpx 10rpx rgba(37,99,235,0.3); }
+	.btn-normal { background-color: #f1f5f9; }
+	.type-text { font-size: 28rpx; font-weight: bold; }
+	.text-white { color: #fff; } .text-gray { color: #64748b; }
+	
+	/* 5. 图片上传 */
+	.upload-box { height: 300rpx; background-color: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 20rpx; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 30rpx; position: relative; }
+	.upload-placeholder { display: flex; flex-direction: column; align-items: center; }
+	.camera-icon { font-size: 60rpx; margin-bottom: 10rpx; color: #94a3b8; }
+	.camera-text { font-size: 26rpx; color: #94a3b8; font-weight: bold; }
+	.upload-img { width: 100%; height: 100%; }
+	
+	/* 6. 底部与弹窗 */
+	.placeholder-bottom { height: 180rpx; }
+	.fixed-footer { position: fixed; bottom: 0; left: 0; right: 0; background-color: #fff; padding: 20rpx 30rpx 60rpx 30rpx; box-shadow: 0 -4rpx 20rpx rgba(0,0,0,0.05); z-index: 100; }
+	.btn-submit { background-color: #9333ea; color: #fff; height: 100rpx; line-height: 100rpx; border-radius: 20rpx; font-size: 34rpx; font-weight: bold; border: none; width: 100%; }
+	
+	/* 7. 特殊颜色 */
+	.font-bold { font-weight: bold; } .text-red { color: #ef4444; } .text-green { color: #16a34a; }
+	.status-tip { margin-top: 20rpx; background-color: #fff7ed; padding: 16rpx; border-radius: 12rpx; border: 1px solid #ffedd5; }
+	.bg-green-light { background-color: #f0fdf4; border-color: #dcfce7; }
+	.tip-text { font-size: 24rpx; font-weight: bold; }
+	.border-top { border-top: 1px solid #f1f5f9; }
+	.pt-3 { padding-top: 30rpx; }
+
+	/* 8. 弹窗样式 */
+	.modal-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); z-index: 999; display: flex; align-items: center; justify-content: center; }
+	.modal-center { background-color: #fff; width: 600rpx; border-radius: 24rpx; padding: 40rpx; display: flex; flex-direction: column; }
+	.modal-title { text-align: center; font-size: 34rpx; font-weight: bold; margin-bottom: 30rpx; }
+	.modal-input { background-color: #f8fafc; height: 90rpx; border-radius: 12rpx; padding: 0 24rpx; margin-bottom: 24rpx; font-size: 30rpx; border: 1px solid #e2e8f0; }
+	.modal-btns { display: flex; flex-direction: row; justify-content: space-between; margin-top: 10rpx; gap: 20rpx; }
+	.modal-btn { flex: 1; height: 80rpx; line-height: 80rpx; text-align: center; border-radius: 12rpx; font-size: 30rpx; font-weight: bold; }
+	.cancel { background-color: #f1f5f9; color: #64748b; }
+	.confirm { background-color: #2563eb; color: #fff; }
+	
+	/* 成功弹窗特有 */
+	.success-icon { font-size: 80rpx; text-align: center; margin-bottom: 20rpx; }
+	.code-box { background-color: #eff6ff; padding: 24rpx; border-radius: 16rpx; text-align: center; margin-bottom: 20rpx; width: 100%; box-sizing: border-box; }
+	.code-label { font-size: 24rpx; color: #60a5fa; display: block; margin-bottom: 8rpx; }
+	.code-val { font-size: 40rpx; font-weight: 900; color: #1e40af; font-family: monospace; }
+	
+	.name-box { width: 100%; padding: 20rpx 0; border-bottom: 1px dashed #e2e8f0; margin-bottom: 30rpx; text-align: center; }
+	.name-val { font-size: 30rpx; font-weight: bold; color: #333; }
+	
+	.warn-box { background-color: #fff7ed; padding: 16rpx; border-radius: 12rpx; margin-bottom: 30rpx; width: 100%; box-sizing: border-box; text-align: center; }
+	.warn-text { font-size: 24rpx; color: #ea580c; }
+	
+	.btn-primary { background-color: #2563eb; color: #fff; width: 100%; height: 90rpx; line-height: 90rpx; border-radius: 16rpx; font-size: 32rpx; font-weight: bold; border: none; }
+</style>
