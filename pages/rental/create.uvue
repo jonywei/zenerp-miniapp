@@ -1,24 +1,23 @@
 <template>
 	<scroll-view class="page" scroll-y="true">
-		
 		<view class="form-card">
-			<view class="card-header-line">
-				<view class="blue-bar"></view>
-				<text class="header-text">基本信息</text>
-			</view>
-			
+			<view class="card-header-line"><view class="blue-bar"></view><text class="header-text">基本信息</text></view>
 			<view class="grid-container">
-				<view class="grid-cell">
+				<view class="grid-cell" style="width: 100%;">
 					<text class="field-label">选择客户 <text class="req">*</text></text>
-					<picker mode="selector" :range="contactNames" @change="onContactChange" class="picker-full">
-						<view class="input-box picker-layout">
-							<text class="input-val" :class="form['contact_id']?'text-dark':'text-light'">{{ currentContactName }}</text>
-							<text class="icon-arrow">▼</text>
-						</view>
-					</picker>
+					<view class="row-center">
+						<picker mode="selector" :range="contactNames" @change="onContactChange" class="flex-1">
+							<view class="input-box picker-layout">
+								<text class="input-val" :class="form['contact_id']?'text-dark':'text-light'">{{ currentContactName }}</text>
+								<text class="icon-arrow">▼</text>
+							</view>
+						</picker>
+						<view class="add-btn" @click="showAddModal=true">+</view>
+					</view>
 				</view>
-				
-				<view class="grid-cell">
+			</view>
+			<view class="grid-container mt-3">
+				<view class="grid-cell" style="width: 100%;">
 					<text class="field-label">选择设备 <text class="req">*</text></text>
 					<view class="input-box picker-layout" @click="showProductModal = true">
 						<text class="input-val" :class="form['product_id']?'text-dark':'text-light'">{{ currentProductName }}</text>
@@ -29,11 +28,7 @@
 		</view>
 
 		<view class="form-card">
-			<view class="card-header-line">
-				<view class="orange-bar"></view>
-				<text class="header-text">租赁周期</text>
-			</view>
-			
+			<view class="card-header-line"><view class="orange-bar"></view><text class="header-text">租赁周期</text></view>
 			<view class="grid-container">
 				<view class="grid-cell">
 					<text class="field-label">起租日期</text>
@@ -44,128 +39,72 @@
 						</view>
 					</picker>
 				</view>
-				
 				<view class="grid-cell">
-					<text class="field-label">租期时长 ({{ strategyUnit }}) <text class="req">*</text></text>
-					<input class="input-box font-bold" type="number" v-model="form['duration']" placeholder="例如: 12" />
+					<text class="field-label">租期时长 (月) <text class="req">*</text></text>
+					<input class="input-box font-bold" type="number" v-model="form['duration']" placeholder="12" @input="calc" />
 				</view>
-			</view>
-			
-			<view class="date-tip" v-if="form['duration']">
-				<text class="tip-text">📅 预计到期：{{ estimatedEndDate }}</text>
 			</view>
 		</view>
 
 		<view class="form-card">
-			<view class="card-header-line">
-				<view class="purple-bar"></view>
-				<text class="header-text">费用方案</text>
-			</view>
-			
+			<view class="card-header-line"><view class="purple-bar"></view><text class="header-text">财务方案 (Pro)</text></view>
 			<view class="grid-container">
 				<view class="grid-cell">
 					<text class="field-label">押金 (¥)</text>
-					<input class="input-box font-bold" type="digit" v-model="form['deposit']" placeholder="0" />
+					<input class="input-box font-bold" type="digit" v-model="form['deposit']" placeholder="0" @input="calc" />
 				</view>
 				<view class="grid-cell">
 					<text class="field-label">租金单价 (¥)</text>
-					<input class="input-box font-bold text-purple" type="digit" v-model="form['rent_price']" placeholder="0" />
+					<input class="input-box font-bold text-purple" type="digit" v-model="form['rent_price']" placeholder="0" @input="calc" />
 				</view>
 			</view>
-			
 			<view class="grid-container mt-3">
 				<view class="grid-cell">
-					<text class="field-label">计费方式</text>
-					<picker mode="selector" :range="strategies" @change="onStrategyChange" class="picker-full">
-						<view class="input-box picker-layout">
-							<text class="input-val text-dark">{{ strategyName }}</text>
-							<text class="icon-arrow">▼</text>
-						</view>
-					</picker>
+					<text class="field-label">月折旧估算 (¥)</text>
+					<input class="input-box text-red" type="digit" v-model="form['depreciation_monthly']" placeholder="成本估算" @input="calc" />
 				</view>
 				<view class="grid-cell">
-					<text class="field-label">预计月折旧 (¥)</text>
-					<input class="input-box text-red" type="digit" v-model="form['depreciation_monthly']" placeholder="估算" />
+					<text class="field-label">首期支付 (¥)</text>
+					<input class="input-box font-bold text-green" type="digit" v-model="form['first_payment']" placeholder="含押金" />
 				</view>
 			</view>
+			<view class="profit-box mt-3">
+				<text class="profit-label">📊 预计本单毛利:</text>
+				<text class="profit-val" :class="expectedProfit>=0?'text-green':'text-red'">¥{{ expectedProfit }}</text>
+			</view>
 		</view>
-		
 		<view class="placeholder-bottom"></view>
 	</scroll-view>
 
 	<view class="fixed-footer">
-		<button class="btn-submit" :loading="loading" @click="submit">确认出租</button>
+		<button class="btn-submit" :loading="loading" @click="submit">确认出租 (自动挂账)</button>
 	</view>
 	
-	<view v-if="showProductModal" class="modal-mask" style="z-index: 999;">
-		<view class="drawer-box">
-			<view class="drawer-header"><text class="drawer-title">选择库存设备</text><text class="drawer-close" @click="showProductModal = false">×</text></view>
-			<view class="drawer-search"><input class="search-input" v-model="productKeyword" placeholder="输入编码或型号搜索..." /></view>
-			<scroll-view scroll-y="true" class="drawer-list">
-				<view v-for="(p, index) in filteredProducts" :key="index" class="product-row" @click="selectProduct(p)">
-					<image :src="p['image'] || '/static/logo.png'" mode="aspectFill" class="p-thumb"></image>
-					<view class="p-info"><view class="p-top"><text class="p-code">{{ p['zencode'] }}</text><text class="p-name">{{ p['name'] }}</text></view><text class="p-spec">{{ p['cpu'] }} {{ p['gpu'] }} {{ p['ram'] }}</text><text class="p-price">成本: ¥{{ p['cost_price'] }}</text></view>
-					<view class="p-check">选</view>
-				</view>
-				<view v-if="filteredProducts.length == 0" class="empty-tip"><text class="empty-text">无匹配设备</text></view>
-			</scroll-view>
-		</view>
-	</view>
+	<view v-if="showProductModal" class="modal-mask" style="z-index: 900;"><view class="drawer-box"><view class="drawer-header"><text class="drawer-title">选择库存设备</text><text class="drawer-close" @click="showProductModal = false">×</text></view><view class="drawer-search"><input class="search-input" v-model="productKeyword" placeholder="输入编码或型号搜索..." /></view><scroll-view scroll-y="true" class="drawer-list"><view v-for="(p, index) in filteredProducts" :key="index" class="product-row" @click="selectProduct(p)"><image :src="p['image'] || '/static/logo.png'" mode="aspectFill" class="p-thumb"></image><view class="p-info"><view class="p-top"><text class="p-code">{{ p['zencode'] }}</text><text class="p-name">{{ p['name'] }}</text></view><text class="p-spec">{{ p['cpu'] }} {{ p['gpu'] }}</text><text class="p-price">成本: ¥{{ p['cost_price'] }}</text></view><view class="p-check">选</view></view></scroll-view></view></view>
+	<view v-if="showAddModal" class="modal-mask" style="z-index: 950;"><view class="modal-center"><view class="modal-title">新增客户</view><input class="modal-input" v-model="newC.name" placeholder="客户姓名 (必填)" /><input class="modal-input" v-model="newC.phone" placeholder="联系电话" type="number" /><input class="modal-input" v-model="newC.address" placeholder="地址/备注" /><view class="modal-btns"><view class="modal-btn cancel" @click="showAddModal=false">取消</view><view class="modal-btn confirm" @click="addContact">保存</view></view></view></view>
 </template>
 
 <script>
 	import { request } from '@/common/api.js';
-
 	export default {
 		data() {
 			return {
-				loading: false,
-				contacts: [], products: [], contactNames: ['加载中...'],
-				strategies: ['按月 (Monthly)', '按天 (Daily)'], strategyMap: ['MONTHLY', 'DAILY'],
-				currentContactName: '请选择', currentProductName: '请选择', strategyName: '按月', strategyUnit: '月',
-				
-				form: { 
-					contact_id: '', product_id: '', 
-					deposit: '', rent_price: '', 
-					rent_strategy: 'MONTHLY', depreciation_monthly: '',
-					start_date: '', duration: '' 
-				} as any,
-				
-				showProductModal: false, productKeyword: ''
+				loading: false, contacts: [], products: [], contactNames: ['加载中...'], currentContactName: '请选择', currentProductName: '请选择',
+				form: { contact_id: '', product_id: '', deposit: '', rent_price: '', depreciation_monthly: '', start_date: '', duration: '', first_payment: '' } as any,
+				expectedProfit: 0, showAddModal: false, newC: { name: '', phone: '', address: '' }, showProductModal: false, productKeyword: ''
 			}
 		},
 		computed: {
 			filteredProducts(): any[] {
 				if(!this.productKeyword) return this.products;
 				let k = this.productKeyword.toLowerCase();
-				return this.products.filter((p: any): boolean => {
-					let code = (p['zencode'] || '').toString().toLowerCase();
-					let name = (p['name'] || '').toString().toLowerCase();
-					return code.includes(k) || name.includes(k);
-				});
-			},
-			estimatedEndDate(): string {
-				if (!this.form['start_date'] || !this.form['duration']) return '-';
-				let start = new Date(this.form['start_date']);
-				let duration = parseInt(this.form['duration']);
-				if (this.form['rent_strategy'] === 'MONTHLY') {
-					start.setMonth(start.getMonth() + duration);
-				} else {
-					start.setDate(start.getDate() + duration);
-				}
-				let y = start.getFullYear();
-				let m = start.getMonth() + 1;
-				let d = start.getDate();
-				return `${y}-${m < 10 ? '0'+m : m}-${d < 10 ? '0'+d : d}`;
+				return this.products.filter((p: any): boolean => (p['zencode'] || '').toString().toLowerCase().includes(k) || (p['name'] || '').toString().toLowerCase().includes(k));
 			}
 		},
 		onLoad() { 
-			let now = new Date();
-			let y = now.getFullYear();
-			let m = now.getMonth() + 1;
-			let d = now.getDate();
+			let now = new Date(); let y = now.getFullYear(); let m = now.getMonth() + 1; let d = now.getDate();
 			this.form['start_date'] = `${y}-${m < 10 ? '0'+m : m}-${d < 10 ? '0'+d : d}`;
-			this.loadData(); 
+			this.loadData();
 		},
 		methods: {
 			async loadData() {
@@ -176,62 +115,71 @@
 					if(pRes) { let list = (pRes as any)['results'] || pRes; this.products = list as any[]; }
 				} catch(e) {}
 			},
+			calc() {
+				let dur = parseFloat(this.form['duration'] || 0);
+				let rent = parseFloat(this.form['rent_price'] || 0);
+				let dep = parseFloat(this.form['deposit'] || 0);
+				let depr = parseFloat(this.form['depreciation_monthly'] || 0);
+				if(!this.form['first_payment'] && rent > 0) this.form['first_payment'] = (dep + rent).toString();
+				this.expectedProfit = (rent * dur) - (depr * dur);
+			},
+			async addContact() {
+				if(!this.newC.name) return uni.showToast({title:'姓名必填', icon:'none'});
+				try {
+					const res = await request({ url: '/api/contacts/', method: 'POST', data: this.newC });
+					await this.loadData();
+					this.form['contact_id'] = (res as any).id; this.currentContactName = (res as any).name; this.showAddModal = false; this.newC = { name: '', phone: '', address: '' }; 
+				} catch(e) { uni.showToast({title:'失败', icon:'none'}); }
+			},
 			onContactChange(e: any) { let idx = e.detail.value as number; if(this.contacts[idx]) { this.form['contact_id'] = this.contacts[idx]['id']; this.currentContactName = this.contacts[idx]['name']; } },
 			onDateChange(e: any) { this.form['start_date'] = e.detail.value; },
 			selectProduct(p: any) { this.form['product_id'] = p['id']; this.currentProductName = `${p['zencode']} - ${p['name']}`; this.showProductModal = false; },
-			onStrategyChange(e: any) { 
-				let idx = e.detail.value as number; 
-				this.form['rent_strategy'] = this.strategyMap[idx]; 
-				this.strategyName = this.strategies[idx]; 
-				this.strategyUnit = this.strategyMap[idx] === 'MONTHLY' ? '月' : '天';
-			},
 			async submit() {
-				if(!this.form['contact_id'] || !this.form['product_id']) return uni.showToast({title:'请填写完整', icon:'none'});
-				if(!this.form['rent_price']) return uni.showToast({title:'请填写租金', icon:'none'});
-				if(!this.form['duration']) return uni.showToast({title:'请填写租期', icon:'none'});
-				
+				if(!this.form['contact_id']) return uni.showToast({title:'请选择客户', icon:'none'});
+				if(!this.form['product_id']) return uni.showToast({title:'请选择设备', icon:'none'});
 				this.loading = true;
-				try { await request({ url: '/api/rentals/create_lease/', method: 'POST', data: this.form }); uni.showToast({ title: '开单成功' }); setTimeout(() => { uni.navigateBack(); }, 800); } 
-				catch(e) { uni.showToast({ title: '失败', icon: 'none' }); } finally { this.loading = false; }
+				try { 
+					let submitData = JSON.parse(JSON.stringify(this.form));
+					if(!submitData.first_payment) { let dep = parseFloat(submitData.deposit || 0); let rent = parseFloat(submitData.rent_price || 0); submitData.first_payment = dep + rent; }
+					await request({ url: '/api/rentals/create_lease/', method: 'POST', data: submitData }); 
+					uni.showToast({ title: '开单成功' });
+					setTimeout(() => { uni.navigateBack(); }, 800); 
+				} catch(e: any) { uni.showModal({ title: '开单失败', content: (e.data && e.data.error) || '请求失败', showCancel: false }); } finally { this.loading = false; }
 			}
 		}
 	}
 </script>
-
 <style>
-	/* 样式保持不变，复用您之前的即可 */
-	.page { padding: 30rpx; background-color: #f8fafc; height: 100%; box-sizing: border-box; }
+	.page { padding: 30rpx; background-color: #f8fafc; height: 100vh; box-sizing: border-box; }
 	.form-card { background-color: #fff; border-radius: 20rpx; padding: 30rpx; margin-bottom: 30rpx; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02); }
 	.card-header-line { display: flex; flex-direction: row; align-items: center; margin-bottom: 30rpx; }
 	.blue-bar { width: 8rpx; height: 32rpx; background-color: #2563eb; border-radius: 4rpx; margin-right: 16rpx; }
 	.purple-bar { width: 8rpx; height: 32rpx; background-color: #9333ea; border-radius: 4rpx; margin-right: 16rpx; }
 	.orange-bar { width: 8rpx; height: 32rpx; background-color: #f59e0b; border-radius: 4rpx; margin-right: 16rpx; }
 	.header-text { font-size: 32rpx; font-weight: bold; color: #1e293b; }
-	
-	.grid-container { display: flex; flex-direction: row; justify-content: space-between; width: 100%; }
+	.grid-container { display: flex; flex-direction: row; justify-content: space-between; width: 100%; flex-wrap: wrap; }
 	.grid-cell { width: 48%; display: flex; flex-direction: column; }
 	.mt-3 { margin-top: 30rpx; }
-	
 	.field-label { font-size: 26rpx; font-weight: bold; color: #64748b; margin-bottom: 12rpx; display: block; }
 	.req { color: #ef4444; margin-left: 4rpx; }
-	
-	.input-box { width: 100%; height: 100rpx; background-color: #fff; border: 1px solid #cbd5e1; border-radius: 16rpx; padding: 0 20rpx; font-size: 30rpx; color: #333; box-sizing: border-box; }
+	.input-box { width: 100%; height: 100rpx; background-color: #fff; border: 1px solid #cbd5e1; border-radius: 16rpx; padding: 0 20rpx; font-size: 30rpx; color: #333; box-sizing: border-box; display: flex; align-items: center; }
 	.picker-full { width: 100%; }
 	.picker-layout { display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
-	.input-val { flex: 1; overflow: hidden; text-overflow: ellipsis; lines: 1; white-space: nowrap; }
+	.input-val { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.text-dark { color: #333; } .text-light { color: #94a3b8; } .icon-arrow { font-size: 24rpx; color: #cbd5e1; margin-left: 10rpx; font-weight: bold; } .icon-search { font-size: 30rpx; }
-	
-	.font-bold { font-weight: bold; } .text-purple { color: #9333ea; } .text-red { color: #ef4444; }
-	
-	.date-tip { margin-top: 20rpx; background-color: #fff7ed; padding: 16rpx; border-radius: 12rpx; border: 1px solid #ffedd5; }
-	.tip-text { font-size: 24rpx; color: #c2410c; font-weight: bold; }
-	
+	.row-center { display: flex; flex-direction: row; align-items: center; gap: 20rpx; }
+	.flex-1 { flex: 1; }
+	.add-btn { width: 80rpx; height: 100rpx; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 16rpx; display: flex; align-items: center; justify-content: center; color: #2563eb; font-size: 40rpx; font-weight: bold; }
+	.font-bold { font-weight: bold; } .text-purple { color: #9333ea; } .text-red { color: #ef4444; } .text-green { color: #16a34a; }
+	.profit-box { background-color: #f1f5f9; padding: 20rpx; border-radius: 12rpx; display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
+	.profit-label { font-size: 28rpx; font-weight: bold; color: #64748b; }
+	.profit-val { font-size: 32rpx; font-weight: 900; }
 	.placeholder-bottom { height: 180rpx; }
 	.fixed-footer { position: fixed; bottom: 0; left: 0; right: 0; background-color: #fff; padding: 20rpx 30rpx 60rpx 30rpx; box-shadow: 0 -4rpx 20rpx rgba(0,0,0,0.05); z-index: 100; }
-	.btn-submit { background-color: #9333ea; color: #fff; height: 100rpx; line-height: 100rpx; border-radius: 20rpx; font-size: 34rpx; font-weight: bold; border: none; width: 100%; } .btn-submit:active { opacity: 0.9; }
-
-	.modal-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); z-index: 999; }
-	.drawer-box { position: absolute; bottom: 0; left: 0; right: 0; background-color: #fff; border-top-left-radius: 30rpx; border-top-right-radius: 30rpx; height: 75vh; display: flex; flex-direction: column; }
+	.btn-submit { background-color: #9333ea; color: #fff; height: 100rpx; line-height: 100rpx; border-radius: 20rpx; font-size: 34rpx; font-weight: bold; border: none; width: 100%; }
+	/* Modal Styles */
+	.modal-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); z-index: 999; display: flex; align-items: flex-end; justify-content: center; }
+	.drawer-box { background-color: #fff; border-top-left-radius: 30rpx; border-top-right-radius: 30rpx; height: 75vh; width: 100%; display: flex; flex-direction: column; }
 	.drawer-header { padding: 30rpx; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; }
 	.drawer-title { font-size: 32rpx; font-weight: bold; color: #333; }
 	.drawer-close { font-size: 40rpx; color: #999; padding: 0 20rpx; }
@@ -243,9 +191,15 @@
 	.p-info { flex: 1; margin-right: 20rpx; overflow: hidden; }
 	.p-top { display: flex; flex-direction: row; align-items: center; margin-bottom: 6rpx; }
 	.p-code { font-size: 22rpx; background-color: #e0e7ff; color: #3730a3; padding: 2rpx 8rpx; border-radius: 6rpx; margin-right: 12rpx; font-weight: bold; min-width: 60rpx; text-align: center; }
-	.p-name { font-size: 28rpx; font-weight: bold; color: #333; overflow: hidden; text-overflow: ellipsis; lines: 1; }
-	.p-spec { font-size: 22rpx; color: #64748b; margin-bottom: 4rpx; overflow: hidden; text-overflow: ellipsis; lines: 1; }
+	.p-name { font-size: 28rpx; font-weight: bold; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.p-spec { font-size: 22rpx; color: #64748b; margin-bottom: 4rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.p-price { font-size: 22rpx; color: #f59e0b; }
 	.p-check { background-color: #f3e8ff; color: #9333ea; font-size: 24rpx; padding: 8rpx 20rpx; border-radius: 30rpx; font-weight: bold; }
-	.empty-tip { padding: 60rpx; text-align: center; } .empty-text { color: #ccc; font-size: 26rpx; }
+	.modal-center { background-color: #fff; width: 600rpx; border-radius: 24rpx; padding: 40rpx; margin-bottom: 50vh; }
+	.modal-title { text-align: center; font-size: 34rpx; font-weight: bold; margin-bottom: 40rpx; }
+	.modal-input { background-color: #f8fafc; height: 90rpx; border-radius: 12rpx; padding: 0 24rpx; margin-bottom: 24rpx; font-size: 30rpx; border: 1px solid #e2e8f0; }
+	.modal-btns { display: flex; flex-direction: row; justify-content: space-between; margin-top: 20rpx; }
+	.modal-btn { width: 48%; height: 80rpx; line-height: 80rpx; text-align: center; border-radius: 12rpx; font-size: 30rpx; font-weight: bold; }
+	.cancel { background-color: #f1f5f9; color: #64748b; }
+	.confirm { background-color: #2563eb; color: #fff; }
 </style>

@@ -1,46 +1,88 @@
 <template>
 	<scroll-view class="page" scroll-y="true">
-		<view class="header"><input class="search-input" v-model="keyword" placeholder="🔍 搜索型号 / ZenCode / 备注..." /></view>
+		<view class="header">
+            <input class="search-input" v-model="keyword" placeholder="🔍 搜索型号 / ZenCode..." />
+        </view>
+        <view class="tab-row">
+            <view class="tab-item" :class="status=='ALL'?'active':''" @click="switchTab('ALL')"><text class="tab-text" :class="status=='ALL'?'text-white':''">📦 全部</text></view>
+            <view class="tab-item" :class="status=='IN_STOCK'?'active':''" @click="switchTab('IN_STOCK')"><text class="tab-text" :class="status=='IN_STOCK'?'text-white':''">🏠 在库</text></view>
+            <view class="tab-item" :class="status=='RENTED'?'active':''" @click="switchTab('RENTED')"><text class="tab-text" :class="status=='RENTED'?'text-white':''">🚚 在租</text></view>
+        </view>
+
 		<view class="list">
 			<view v-for="(p, index) in filteredList" :key="index" class="card" @click="goDetail(p)">
 				<image :src="p['image'] || '/static/logo.png'" mode="aspectFill" class="thumb"></image>
 				<view class="content">
-					<view class="row-between"><text class="code">{{ p['zencode'] }}</text><text class="price">¥{{ p['cost_price'] }}</text></view>
+					<view class="row-between">
+                        <text class="status-tag" :class="'bg-'+p['color_tag']">{{ getStatusText(p['status']) }}</text>
+                        <text class="price">¥{{ p['cost_price'] }}</text>
+                    </view>
 					<text class="name">{{ p['name'] }}</text>
-					<text class="specs">{{ p['cpu'] }} / {{ p['gpu'] }} / {{ p['ram'] }} / {{ p['disk'] }}</text>
-					<text class="date">{{ formatDate(p['created_at']) }} 入库</text>
+					<text class="specs">{{ p['cpu'] }} / {{ p['gpu'] }} / {{ p['ram'] }}</text>
+                    <view class="row-between" style="margin-top: 10rpx;">
+                        <text class="code">{{ p['zencode'] }}</text>
+					    <text class="date">{{ formatDate(p['created_at']) }} 入库</text>
+                    </view>
 				</view>
 			</view>
-			<view v-if="filteredList.length == 0" class="empty"><text class="empty-text">没有找到相关商品</text></view>
+			<view v-if="filteredList.length == 0" class="empty"><text class="empty-text">暂无商品</text></view>
 		</view>
 	</scroll-view>
 </template>
 <script>
 	import { request } from '@/common/api.js';
 	export default {
-		data() { return { products: [], keyword: '' } },
-		computed: { filteredList(): any[] { if(!this.keyword) return this.products; let k = this.keyword.toLowerCase(); return this.products.filter((p: any): boolean => { let name = (p['name'] || '').toString().toLowerCase(); let code = (p['zencode'] || '').toString().toLowerCase(); let note = (p['note'] || '').toString().toLowerCase(); return name.includes(k) || code.includes(k) || note.includes(k); }); } },
-		// ⚠️ 强刷
+		data() { return { products: [], keyword: '', status: 'ALL' } },
+		computed: { 
+            filteredList(): any[] { 
+                if(!this.keyword) return this.products;
+                let k = this.keyword.toLowerCase(); 
+                return this.products.filter((p: any): boolean => { 
+                    let name = (p['name'] || '').toString().toLowerCase(); 
+                    let code = (p['zencode'] || '').toString().toLowerCase(); 
+                    return name.includes(k) || code.includes(k); 
+                });
+            } 
+        },
 		onShow() { this.loadData(); },
 		methods: { 
+            switchTab(s: string) { this.status = s; this.loadData(); },
 			async loadData() { 
 				try { 
-					const res = await request({ url: `/api/products/?status=IN_STOCK&t=${Date.now()}` }); 
-					if(res) { let list = (res as any)['results'] || res; this.products = list as any[]; } 
+					const res = await request({ url: `/api/products/?status=${this.status}&page_size=1000&t=${Date.now()}` });
+                    if(res) { let list = (res as any)['results'] || res; this.products = list as any[]; } 
 				} catch(e) {} 
 			}, 
 			formatDate(str: any): string { if(!str) return ''; return String(str).substring(0, 10); }, 
+            getStatusText(s: string): string { const map={IN_STOCK:'在库', RENTED:'在租', TRANSIT:'中转', SOLD:'已售'}; return map[s] || s; },
 			goDetail(p: any) { uni.navigateTo({ url: `/pages/inventory/detail?id=${p['id']}` }); } 
 		}
 	}
 </script>
 <style>
 	.page { padding: 20rpx; background-color: #f5f7fa; height: 100%; }
-	.header { background-color: #fff; padding: 20rpx; border-radius: 16rpx; margin-bottom: 20rpx; } .search-input { font-size: 28rpx; height: 60rpx; }
+	.header { background-color: #fff; padding: 20rpx; border-radius: 16rpx; margin-bottom: 20rpx; } 
+    .search-input { font-size: 28rpx; height: 60rpx; }
+    
+    .tab-row { flex-direction: row; margin-bottom: 20rpx; background-color: #e5e7eb; border-radius: 16rpx; padding: 6rpx; }
+    .tab-item { flex: 1; align-items: center; justify-content: center; padding: 16rpx 0; border-radius: 12rpx; }
+    .active { background-color: #2563eb; }
+    .tab-text { font-size: 28rpx; font-weight: bold; color: #6b7280; } .text-white { color: #fff; }
+
 	.card { background-color: #fff; border-radius: 20rpx; padding: 20rpx; margin-bottom: 20rpx; flex-direction: row; }
 	.thumb { width: 160rpx; height: 160rpx; border-radius: 12rpx; background-color: #eee; margin-right: 20rpx; }
 	.content { flex: 1; justify-content: space-between; } .row-between { flex-direction: row; justify-content: space-between; align-items: flex-start; }
-	.code { font-size: 20rpx; color: #2563eb; background-color: #dbeafe; padding: 4rpx 10rpx; border-radius: 8rpx; } .price { font-size: 32rpx; font-weight: bold; color: #ca8a04; }
-	.name { font-size: 30rpx; font-weight: bold; color: #333; margin-top: 10rpx; lines: 1; text-overflow: ellipsis; } .specs { font-size: 22rpx; color: #999; margin-top: 6rpx; lines: 1; text-overflow: ellipsis; } .date { font-size: 20rpx; color: #ccc; margin-top: 10rpx; }
+	.code { font-size: 20rpx; color: #999; background-color: #f3f4f6; padding: 2rpx 8rpx; border-radius: 6rpx; } 
+    .price { font-size: 32rpx; font-weight: bold; color: #ca8a04; }
+	.name { font-size: 30rpx; font-weight: bold; color: #333; margin-top: 10rpx; lines: 1; text-overflow: ellipsis; } 
+    .specs { font-size: 22rpx; color: #999; margin-top: 6rpx; lines: 1; text-overflow: ellipsis; } 
+    .date { font-size: 20rpx; color: #ccc; }
+    
+    /* 🟢 颜色样式 */
+    .status-tag { font-size: 20rpx; padding: 4rpx 10rpx; border-radius: 8rpx; color: #fff; font-weight: bold; }
+    .bg-green { background-color: #10b981; } 
+    .bg-yellow { background-color: #f59e0b; }
+    .bg-red { background-color: #ef4444; }
+    
 	.empty { padding: 60rpx; align-items: center; } .empty-text { font-size: 24rpx; color: #ccc; }
 </style>
