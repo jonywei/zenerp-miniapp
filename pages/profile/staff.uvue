@@ -1,0 +1,49 @@
+<template>
+	<view class="page">
+		<view class="list">
+			<view v-for="(u, i) in list" :key="i" class="user-item">
+				<view class="left">
+					<text class="u-name">{{ u.first_name || u.username }}</text>
+					<text class="u-role">销售</text>
+				</view>
+				<view class="right"><text class="u-time">账号: {{ u.username }}</text></view>
+			</view>
+			<view v-if="list.length===0" class="empty">暂无员工</view>
+		</view>
+		<view class="add-box">
+			<view class="title">新增员工</view>
+			<input class="input" v-model="form.first_name" placeholder="姓名 (如: 小王)" />
+			<input class="input" v-model="form.username" placeholder="登录手机号" type="number" />
+			<input class="input" v-model="form.password" placeholder="初始密码 (默认123456)" />
+			<button class="btn" @click="add" :loading="loading">确认添加</button>
+		</view>
+	</view>
+</template>
+<script>
+	import { request } from '@/common/api.js';
+	export default {
+		data() { return { list: [], form: { first_name:'', username:'', password:'' }, loading: false } },
+		onShow() { this.load(); },
+		methods: {
+			async load() { try { const res = await request({ url: '/api/staff/' }); this.list = res.results || res; } catch(e){} },
+			async add() {
+				if(!this.form.username) return uni.showToast({title:'手机号必填', icon:'none'});
+				this.loading = true;
+				try { await request({ url: '/api/staff/', method: 'POST', data: this.form }); uni.showToast({ title: '添加成功' }); this.form={first_name:'', username:'', password:''}; this.load(); } 
+				catch(e) { uni.showToast({ title: e.msg||'添加失败', icon:'none' }); } finally { this.loading = false; }
+			}
+		}
+	}
+</script>
+<style>
+	.page { padding: 30rpx; background: #f8fafc; min-height: 100vh; }
+	.user-item { background: #fff; padding: 30rpx; border-radius: 20rpx; margin-bottom: 20rpx; display: flex; justify-content: space-between; align-items: center; }
+	.u-name { font-weight: bold; font-size: 32rpx; margin-right: 10rpx; }
+	.u-role { background: #eff6ff; color: #2563eb; font-size: 20rpx; padding: 4rpx 10rpx; border-radius: 8rpx; }
+	.u-time { color: #94a3b8; font-size: 24rpx; }
+	.add-box { background: #fff; padding: 40rpx; border-radius: 30rpx; margin-top: 40rpx; }
+	.title { font-weight: bold; margin-bottom: 30rpx; font-size: 32rpx; }
+	.input { background: #f1f5f9; height: 90rpx; border-radius: 16rpx; padding: 0 30rpx; margin-bottom: 20rpx; }
+	.btn { background: #2563eb; color: #fff; border-radius: 16rpx; font-weight: bold; }
+	.empty { text-align: center; color: #cbd5e1; margin-top: 50rpx; }
+</style>

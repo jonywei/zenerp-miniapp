@@ -1,212 +1,236 @@
 <template>
-	<view class="page-container">
-		<view class="profile-header">
-			<view class="avatar-box">
-				<text class="avatar-text">{{ initials }}</text>
-			</view>
-			<text class="user-name">{{ username }}</text>
-			<view class="role-badge">
-				<text class="role-text">管理员</text>
+	<view class="page">
+		<view class="header-section">
+			<view class="user-wrapper">
+				<view class="avatar-box">
+					<text class="avatar-text">{{ initials }}</text>
+				</view>
+				
+				<text class="user-name">{{ name }}</text>
+				
+				<view class="badge-row">
+					<text class="tag company-tag">{{ tenant }}</text>
+					<text class="tag" :class="role === 'ADMIN' ? 'role-gold' : 'role-blue'">{{ roleDisplay }}</text>
+				</view>
 			</view>
 		</view>
-		
-		<view class="menu-list">
-			<view class="menu-item" hover-class="item-hover" @click="handleAction('业绩')">
-				<text class="menu-label">我的业绩</text>
-				<text class="menu-arrow">›</text>
-			</view>
+
+		<view class="menu-container">
 			
-			<view class="menu-item" hover-class="item-hover" @click="handleAction('密码')">
-				<text class="menu-label">修改密码</text>
-				<text class="menu-arrow">›</text>
+			<view v-if="role === 'ADMIN'" class="section">
+				<text class="section-title white-text">企业管理</text>
+				
+				<view class="card-box">
+					<view class="row-item border-line" @click="go('/pages/profile/company')">
+						<view class="left-flex">
+							<view class="icon-bg blue-bg"><text class="emoji-icon">🏢</text></view>
+							<text class="item-text">公司信息设置</text>
+						</view>
+						<text class="arrow-right">›</text>
+					</view>
+					
+					<view class="row-item border-line" @click="go('/pages/profile/staff')">
+						<view class="left-flex">
+							<view class="icon-bg purple-bg"><text class="emoji-icon">👥</text></view>
+							<text class="item-text">员工账号管理</text>
+						</view>
+						<text class="arrow-right">›</text>
+					</view>
+					
+					<view class="row-item" @click="go('/pages/account/list')">
+						<view class="left-flex">
+							<view class="icon-bg green-bg"><text class="emoji-icon">💳</text></view>
+							<text class="item-text">资金账户管理</text>
+						</view>
+						<text class="arrow-right">›</text>
+					</view>
+				</view>
 			</view>
-		</view>
-		
-		<view class="footer-area">
-			<button class="btn-logout" @click="logout">退出登录</button>
+
+			<view class="section">
+				<text class="section-title dark-text">个人中心</text>
+				
+				<view class="card-box">
+					<view class="row-item border-line" @click="go('/pages/profile/performance')">
+						<view class="left-flex">
+							<view class="icon-bg cyan-bg"><text class="emoji-icon">📊</text></view>
+							<text class="item-text">我的业绩战报</text>
+						</view>
+						<text class="arrow-right">›</text>
+					</view>
+					
+					<view class="row-item" @click="go('/pages/profile/password')">
+						<view class="left-flex">
+							<view class="icon-bg orange-bg"><text class="emoji-icon">🔒</text></view>
+							<text class="item-text">修改登录密码</text>
+						</view>
+						<text class="arrow-right">›</text>
+					</view>
+				</view>
+			</view>
+
+			<button class="logout-button" @click="logout">退出登录</button>
+			
+			<view class="version-text">ZenERP v4.2</view>
 		</view>
 	</view>
 </template>
 
 <script>
+	import { request } from '@/common/api.js';
 	export default {
 		data() {
 			return {
-				username: 'Admin',
-				initials: 'AD'
+				name: '加载中...',
+				initials: 'Z',
+				tenant: '',
+				role: '',
+				roleDisplay: ''
 			}
 		},
 		onShow() {
-			let u = uni.getStorageSync('username') as string;
-			if(u) {
-				this.username = u;
-				this.initials = u.substring(0, 2).toUpperCase();
+			this.name = uni.getStorageSync('username') || '用户';
+			this.role = uni.getStorageSync('role') || 'SALES';
+			this.tenant = uni.getStorageSync('tenant_name') || '未入驻';
+			
+			if (this.name && this.name !== '加载中...') {
+				this.initials = this.name.substring(0, 1).toUpperCase();
 			}
+			this.roleDisplay = this.role === 'ADMIN' ? '老板' : '员工';
 		},
 		methods: {
-			handleAction(type: string) {
-				// 1. 确定目标路径
-				let url = type == '业绩' ? '/pages/profile/performance' : '/pages/profile/password';
-				
-				// 2. 执行跳转，并增加错误反馈
-				uni.navigateTo({
-					url: url,
-					success: () => {
-						console.log("跳转成功: " + url);
-					},
-					fail: (err) => {
-						console.error("跳转失败", err);
-						// ⚠️ 强提示：如果跳不过去，会弹窗告知，证明点击是生效的
-						uni.showModal({
-							title: '跳转失败',
-							content: '请检查 pages.json 是否注册了: ' + url,
-							showCancel: false
-						});
-					}
-				});
-			},
-			logout() {
+			go(url) { uni.navigateTo({ url }); },
+			async logout() {
 				uni.showModal({
 					title: '提示',
 					content: '确定要退出登录吗？',
-					success: (res) => {
+					success: async (res) => {
 						if (res.confirm) {
+							await request({ url: '/api/logout/' });
 							uni.removeStorageSync('sessionid');
+							uni.removeStorageSync('role');
+							uni.removeStorageSync('csrftoken');
 							uni.reLaunch({ url: '/pages/login/login' });
 						}
 					}
-				});
+				})
 			}
 		}
 	}
 </script>
 
 <style>
-	/* 全局容器 */
-	.page-container {
+	.page { background-color: #f5f7fa; min-height: 100vh; }
+	
+	/* 1. 头部区域 */
+	.header-section {
+		background-image: linear-gradient(to bottom, #2563eb, #3b82f6);
+		padding: 60rpx 40rpx 140rpx; 
+		border-radius: 0 0 40rpx 40rpx;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+	
+	.user-wrapper {
 		display: flex;
 		flex-direction: column;
 		align-items: center; 
-		background-color: #f8fafc;
-		height: 100%;
-		/* ⚠️ 核心修复：防止 padding 撑爆屏幕导致溢出 */
-		padding: 0 40rpx;
-		box-sizing: border-box;
-	}
-	
-	/* 头部 */
-	.profile-header {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		margin-top: 100rpx; 
-		margin-bottom: 80rpx;
 		width: 100%;
 	}
 	
-	.avatar-box {
-		width: 180rpx;
-		height: 180rpx;
-		border-radius: 90rpx;
-		background-color: #2563eb;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		box-shadow: 0 16rpx 32rpx rgba(37,99,235,0.25);
-		margin-bottom: 30rpx;
-	}
-	
-	.avatar-text {
-		font-size: 70rpx;
-		font-weight: bold;
-		color: #fff;
-		line-height: 1; 
-	}
-	
-	.user-name {
-		font-size: 48rpx;
-		font-weight: 900;
-		color: #1e293b;
+	.avatar-wrapper {
+		width: 140rpx; height: 140rpx;
+		background-color: rgba(255,255,255,0.2);
+		border: 4rpx solid rgba(255,255,255,0.4);
+		border-radius: 70rpx;
+		display: flex; 
+		flex-direction: row;
+		align-items: center; justify-content: center;
 		margin-bottom: 20rpx;
 	}
+	.avatar-text { font-size: 60rpx; color: #fff; font-weight: 900; }
 	
-	.role-badge {
-		background-color: #e2e8f0;
-		padding: 8rpx 24rpx;
-		border-radius: 30rpx;
+	.user-name {
+		font-size: 44rpx; font-weight: 900; color: #fff;
+		margin-bottom: 20rpx; text-align: center;
+	}
+	
+	.badge-row {
+		display: flex; 
+		flex-direction: row; 
+		align-items: center; 
+		justify-content: center; 
+		gap: 12rpx;
+	}
+	.tag { padding: 8rpx 20rpx; border-radius: 10rpx; font-size: 24rpx; font-weight: bold; color: #fff; }
+	.company-tag { background-color: rgba(0,0,0,0.2); }
+	.role-gold { background-color: #f59e0b; }
+	.role-blue { background-color: #3b82f6; }
+
+	/* 2. 菜单容器 */
+	.menu-container { padding: 0 30rpx; margin-top: -100rpx; }
+	.section { margin-bottom: 30rpx; }
+	
+	.section-title { 
+		font-size: 30rpx; 
+		font-weight: bold; 
+		margin-left: 14rpx; 
+		margin-bottom: 20rpx; 
+		margin-top: 20rpx; 
+	}
+	
+	.white-text { color: #ffffff; text-shadow: 0 2rpx 4rpx rgba(0,0,0,0.1); }
+	.dark-text { color: #64748b; }
+	
+	.card-box { background-color: #fff; border-radius: 24rpx; overflow: hidden; box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.06); }
+	
+	/* 3. 菜单行 */
+	.row-item {
 		display: flex;
+		flex-direction: row; 
 		align-items: center;
-		justify-content: center;
-	}
-	
-	.role-text {
-		font-size: 24rpx;
-		color: #64748b;
-		font-weight: bold;
-	}
-	
-	/* 列表 */
-	.menu-list {
-		width: 100%;
+		justify-content: space-between; 
+		padding: 34rpx 30rpx;
 		background-color: #fff;
-		border-radius: 24rpx;
-		box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.02);
-		padding: 0 30rpx;
-		box-sizing: border-box; /* 确保内边距不撑大 */
 	}
+	.row-item:active { background-color: #f8fafc; }
+	.border-line { border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: #f1f5f9; }
 	
-	.menu-item {
+	.left-flex {
 		display: flex;
-		flex-direction: row;
-		justify-content: space-between;
+		flex-direction: row; 
 		align-items: center;
-		padding: 36rpx 0;
-		border-bottom: 1px solid #f1f5f9;
-		background-color: #fff; /* 确保有点击区域 */
 	}
 	
-	.item-hover {
-		background-color: #f1f5f9; /* 点击反馈色 */
+	.icon-bg {
+		width: 64rpx; height: 64rpx; border-radius: 16rpx;
+		display: flex; flex-direction: row;
+		align-items: center; justify-content: center;
+		margin-right: 24rpx;
+	}
+	.blue-bg { background-color: #eff6ff; }
+	.purple-bg { background-color: #f3e8ff; }
+	.green-bg { background-color: #f0fdf4; }
+	.orange-bg { background-color: #fff7ed; }
+	.cyan-bg { background-color: #ecfeff; }
+	.emoji-icon { font-size: 32rpx; }
+	
+	.item-text { font-size: 30rpx; color: #1e293b; font-weight: 500; }
+	
+	/* 🟢 修复：加大字号，使用 Unicode 箭头 */
+	.arrow-right { 
+		font-size: 40rpx; color: #cbd5e1; 
+		font-weight: bold; font-family: monospace; 
+		line-height: 1; margin-top: -6rpx;
 	}
 	
-	.menu-item:last-child {
-		border-bottom: none;
-	}
-	
-	.menu-label {
-		font-size: 32rpx;
-		color: #333;
-		font-weight: 500;
-	}
-	
-	.menu-arrow {
-		font-size: 40rpx;
-		color: #cbd5e1;
-		font-weight: bold;
-		line-height: 1;
-		margin-top: -6rpx; /* 微调对齐 */
-	}
-	
-	/* 底部区域 */
-	.footer-area {
-		margin-top: auto; 
-		width: 100%;
-		padding-bottom: 60rpx;
-	}
-	
-	.btn-logout {
-		width: 100%;
-		height: 100rpx;
-		line-height: 100rpx;
-		background-color: #fee2e2;
-		color: #ef4444;
-		font-size: 34rpx;
-		font-weight: bold;
+	.logout-button {
+		background-color: #fee2e2; color: #ef4444;
+		font-weight: bold; font-size: 32rpx;
 		border-radius: 20rpx;
-		border: none;
+		height: 96rpx; line-height: 96rpx;
+		margin-top: 60rpx;
 	}
-	.btn-logout:active {
-		opacity: 0.8;
-		transform: scale(0.99);
-	}
+	.version-text { text-align: center; color: #cbd5e1; font-size: 22rpx; margin-top: 40rpx; margin-bottom: 40rpx; }
 </style>

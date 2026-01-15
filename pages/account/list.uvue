@@ -1,42 +1,113 @@
 <template>
-	<scroll-view class="page" scroll-y="true">
-		<view class="total-card">
-			<text class="label-xs">企业预估净资产</text>
-			<text class="val-xl">¥ {{ formatNum(data['net_worth']) }}</text>
-			<view class="row-detail">
-				<view class="col"><text class="label-sub">库存货值</text><text class="val-md">¥ {{ formatNum(data['stock']) }}</text></view>
-				<view class="col align-right"><text class="label-sub">现金结余</text><text class="val-md">¥ {{ formatNum(data['cash']) }}</text></view>
+	<view class="page">
+		<view class="header-card">
+			<view class="info-row">
+				<text class="label">企业预估净资产</text>
 			</view>
-		</view>
-		<view class="section-title">资金账户列表</view>
-		<view class="list-box">
-			<view v-for="(acc, index) in (data['accounts'] as any[])" :key="index" class="list-item" @click="goDetail(acc)">
-				<view class="row-item">
-					<view class="avatar"><text class="avatar-text">{{ getFirstChar(acc['name']) }}</text></view>
-					<view class="info"><text class="acc-name">{{ acc['name'] }}</text><text class="acc-tip">点击查流水 ></text></view>
-					<text class="acc-val">¥ {{ formatNum(acc['balance']) }}</text>
+			<text class="amount-lg">¥ {{ fmt(netWorth) }}</text>
+			
+			<view class="sub-stats">
+				<view class="stat-item">
+					<text class="sub-label">库存货值</text>
+					<text class="sub-val">¥ {{ fmt(stockValue) }}</text>
+				</view>
+				<view class="stat-item text-right">
+					<text class="sub-label">现金结余</text>
+					<text class="sub-val">¥ {{ fmt(totalCash) }}</text>
 				</view>
 			</view>
 		</view>
-	</scroll-view>
+
+		<text class="section-title">资金账户列表</text>
+		
+		<view class="account-list">
+			<view v-for="(item, index) in list" :key="index" class="account-item">
+				<view class="left-part">
+					<view class="icon-box">
+						<text class="icon-txt">{{ item.name.substring(0,1) }}</text>
+					</view>
+					<view class="info-box">
+						<text class="acc-name">{{ item.name }}</text>
+						<text class="link-txt" @click="goHistory(item.id, item.name)">点击查流水 ›</text>
+					</view>
+				</view>
+				<text class="acc-balance">¥ {{ fmt(item.balance) }}</text>
+			</view>
+		</view>
+	</view>
 </template>
+
 <script>
 	import { request } from '@/common/api.js';
 	export default {
-		data() { return { data: { net_worth: 0, stock: 0, cash: 0, accounts: [] } as any } },
-		// ⚠️ 强刷
-		onShow() { this.loadData(); },
+		data() {
+			return {
+				netWorth: 0,
+				stockValue: 0,
+				totalCash: 0,
+				list: []
+			}
+		},
+		onShow() { this.load(); },
 		methods: {
-			async loadData() { try { const res = await request({ url: `/api/analysis/accounting/?t=${Date.now()}` }); if(res) this.data = res; } catch(e) {} },
-			formatNum(num: any): string { return parseFloat(num || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2}); },
-			getFirstChar(name: any): string { return String(name || '').substring(0, 1); },
-			goDetail(acc: any) { uni.navigateTo({ url: `/pages/account/detail?id=${acc['id']}&name=${acc['name']}&balance=${this.formatNum(acc['balance'])}` }); }
+			fmt(n) { return parseFloat(n || 0).toFixed(2); },
+			async load() {
+				try {
+					const res = await request({ url: '/api/analysis/accounting/' });
+					this.netWorth = res.net_worth || 0;
+					this.stockValue = res.stock || 0;
+					this.totalCash = res.cash || 0;
+					this.list = res.accounts || [];
+				} catch(e) {}
+			},
+			goHistory(id, name) {
+				uni.navigateTo({
+					url: `/pages/account/history?id=${id}&name=${name}`
+				});
+			}
 		}
 	}
 </script>
+
 <style>
-	.page { padding: 20rpx; background-color: #f5f7fa; height: 100%; }
-	.total-card { background-image: linear-gradient(135deg, #2563eb, #3b82f6); border-radius: 24rpx; padding: 40rpx; margin-bottom: 30rpx; box-shadow: 0 10rpx 30rpx rgba(37, 99, 235, 0.3); } .label-xs { font-size: 24rpx; color: #bfdbfe; margin-bottom: 10rpx; } .val-xl { font-size: 60rpx; font-weight: 900; color: #fff; margin-bottom: 30rpx; } .row-detail { flex-direction: row; justify-content: space-between; } .col { flex-direction: column; } .align-right { align-items: flex-end; } .label-sub { font-size: 22rpx; color: #bfdbfe; margin-bottom: 4rpx; } .val-md { font-size: 32rpx; font-weight: bold; color: #fff; }
-	.section-title { font-size: 24rpx; font-weight: bold; color: #999; margin-left: 10rpx; margin-bottom: 16rpx; } .list-box { background-color: #fff; border-radius: 20rpx; padding: 0 24rpx; } .list-item { padding: 24rpx 0; border-bottom-width: 1px; border-bottom-color: #f3f4f6; border-bottom-style: solid; } .row-item { flex-direction: row; align-items: center; }
-	.avatar { width: 80rpx; height: 80rpx; border-radius: 16rpx; background-color: #eff6ff; align-items: center; justify-content: center; margin-right: 20rpx; } .avatar-text { font-size: 36rpx; font-weight: bold; color: #2563eb; } .info { flex: 1; justify-content: center; } .acc-name { font-size: 30rpx; font-weight: bold; color: #333; margin-bottom: 6rpx; } .acc-tip { font-size: 20rpx; color: #ccc; } .acc-val { font-size: 32rpx; font-weight: bold; color: #333; }
+	.page { padding: 30rpx; background-color: #f5f7fa; min-height: 100vh; }
+	
+	.header-card {
+		background: linear-gradient(135deg, #2563eb, #3b82f6);
+		border-radius: 24rpx; padding: 40rpx; color: #fff;
+		box-shadow: 0 10rpx 30rpx rgba(37,99,235,0.2);
+		margin-bottom: 40rpx;
+	}
+	.label { font-size: 26rpx; opacity: 0.8; }
+	.amount-lg { font-size: 60rpx; font-weight: bold; margin: 10rpx 0 30rpx; display: block; }
+	
+	.sub-stats { display: flex; flex-direction: row; justify-content: space-between; }
+	.stat-item { display: flex; flex-direction: column; }
+	.text-right { align-items: flex-end; }
+	.sub-label { font-size: 24rpx; opacity: 0.7; margin-bottom: 6rpx; }
+	.sub-val { font-size: 32rpx; font-weight: bold; }
+	
+	.section-title { font-size: 28rpx; color: #64748b; font-weight: bold; margin-bottom: 20rpx; display: block; margin-left: 10rpx; }
+	
+	.account-list { display: flex; flex-direction: column; gap: 20rpx; }
+	.account-item {
+		background-color: #fff; border-radius: 20rpx; padding: 30rpx;
+		display: flex; flex-direction: row; justify-content: space-between; align-items: center;
+		box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02);
+	}
+	
+	.left-part { display: flex; flex-direction: row; align-items: center; }
+	.icon-box {
+		width: 80rpx; height: 80rpx; background-color: #eff6ff; border-radius: 16rpx;
+		display: flex; align-items: center; justify-content: center; margin-right: 20rpx;
+	}
+	.icon-txt { font-size: 36rpx; color: #2563eb; font-weight: bold; }
+	
+	.info-box { display: flex; flex-direction: column; }
+	.acc-name { font-size: 30rpx; font-weight: bold; color: #1e293b; margin-bottom: 6rpx; }
+	
+	/* 🟢 链接样式修正 */
+	.link-txt { font-size: 22rpx; color: #94a3b8; }
+	
+	.acc-balance { font-size: 36rpx; font-weight: bold; color: #1e293b; }
 </style>

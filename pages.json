@@ -5,8 +5,12 @@
 			"style": { "navigationBarTitleText": "登录系统", "navigationStyle": "custom" }
 		},
 		{
+		    "path": "pages/login/register",
+		    "style": { "navigationBarTitleText": "注册入驻" }
+		},
+		{
 			"path": "pages/index/index",
-			"style": { "navigationBarTitleText": "ZenMatrix 工作台", "enablePullDownRefresh": true }
+			"style": { "navigationBarTitleText": "ZenERP工作台", "enablePullDownRefresh": true }
 		},
 		{
 			"path": "pages/entry/add",
@@ -61,17 +65,29 @@
 			"style": { "navigationBarTitleText": "个人中心" }
 		},
 		{
-					"path": "pages/profile/performance",
-					"style": { "navigationBarTitleText": "我的业绩战报" }
-				},
-				{
-					"path": "pages/profile/password",
-					"style": { "navigationBarTitleText": "安全中心" }
-				}
+			"path": "pages/profile/performance",
+			"style": { "navigationBarTitleText": "我的业绩战报" }
+		},
+		{
+			"path": "pages/profile/password",
+			"style": { "navigationBarTitleText": "安全中心" }
+		},
+		{
+		    "path": "pages/profile/staff",
+		    "style": { "navigationBarTitleText": "员工管理" }
+		},
+		{
+		    "path": "pages/profile/company",
+		    "style": { "navigationBarTitleText": "公司信息" }
+		},
+		{
+		    "path": "pages/account/history",
+		    "style": { "navigationBarTitleText": "流水详情" }
+		}
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "ZenMatrix",
+		"navigationBarTitleText": "zerp",
 		"navigationBarBackgroundColor": "#FFFFFF",
 		"backgroundColor": "#F8F8F8"
 	}

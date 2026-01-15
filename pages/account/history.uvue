@@ -1,0 +1,103 @@
+<template>
+	<view class="page">
+		<view class="header">
+			<text class="title">资金流水详情</text>
+			<text class="sub-title">账户: {{ accountName }}</text>
+		</view>
+
+		<scroll-view scroll-y="true" class="list-container">
+			<view v-if="list.length === 0" class="empty">暂无流水记录</view>
+			
+			<view v-for="(item, index) in list" :key="index" class="item">
+				<view class="row-top">
+					<text class="type-tag" :class="item['is_income'] ? 'bg-green' : 'bg-red'">{{ item['type_name'] }}</text>
+					<text class="date">{{ item['date'] }}</text>
+				</view>
+				
+				<view class="row-main">
+					<view class="info">
+						<text class="target">{{ item['target'] }}</text>
+						<text class="remark">{{ item['remark'] }}</text>
+					</view>
+					<text class="amount" :class="item['is_income'] ? 'text-green' : 'text-red'">
+						{{ item['sign'] }} {{ fmt(item['amount']) }}
+					</text>
+				</view>
+				
+				<view class="row-bottom">
+					<text class="operator">经办人: {{ item['operator'] }}</text>
+				</view>
+			</view>
+            <view style="height: 50rpx;"></view>
+		</scroll-view>
+	</view>
+</template>
+
+<script>
+	import { request } from '@/common/api.js';
+	export default {
+		data() {
+			return {
+				accId: '',
+				accountName: '',
+				list: []
+			}
+		},
+		onLoad(options) {
+			this.accId = options['id'] || '';
+			this.accountName = options['name'] || '未知账户';
+			this.loadData();
+		},
+		methods: {
+			fmt(n) { return parseFloat(n).toFixed(2); },
+			async loadData() {
+				if(!this.accId) return;
+				try {
+					const res = await request({ url: '/api/analysis/account_history/?id=' + this.accId });
+					this.list = res;
+				} catch(e) {
+					uni.showToast({ title: '加载失败', icon: 'none' });
+				}
+			}
+		}
+	}
+</script>
+
+<style>
+	.page { background-color: #f5f7fa; height: 100vh; display: flex; flex-direction: column; }
+	
+	.header {
+		background: #fff; padding: 30rpx 40rpx;
+		border-bottom: 1px solid #eee;
+		display: flex; flex-direction: column;
+	}
+	.title { font-size: 36rpx; font-weight: 900; color: #1e293b; margin-bottom: 8rpx; }
+	.sub-title { font-size: 24rpx; color: #64748b; }
+	
+	.list-container { flex: 1; padding: 20rpx; box-sizing: border-box; }
+	
+	.item {
+		background-color: #fff; border-radius: 20rpx; padding: 30rpx; margin-bottom: 20rpx;
+		box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.02);
+	}
+	
+	.row-top { display: flex; flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 20rpx; }
+	.type-tag { font-size: 22rpx; padding: 4rpx 12rpx; border-radius: 8rpx; font-weight: bold; }
+	.bg-green { background-color: #f0fdf4; color: #16a34a; }
+	.bg-red { background-color: #fef2f2; color: #dc2626; }
+	.date { font-size: 24rpx; color: #94a3b8; font-family: monospace; }
+	
+	.row-main { display: flex; flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 20rpx; }
+	.info { display: flex; flex-direction: column; flex: 1; margin-right: 20rpx; }
+	.target { font-size: 30rpx; font-weight: bold; color: #334155; margin-bottom: 6rpx; }
+	.remark { font-size: 24rpx; color: #64748b; }
+	
+	.amount { font-size: 36rpx; font-weight: 900; font-family: monospace; }
+	.text-green { color: #16a34a; }
+	.text-red { color: #dc2626; }
+	
+	.row-bottom { border-top: 1px dashed #f1f5f9; padding-top: 16rpx; }
+	.operator { font-size: 22rpx; color: #cbd5e1; }
+	
+	.empty { text-align: center; color: #cbd5e1; margin-top: 100rpx; font-size: 28rpx; }
+</style>

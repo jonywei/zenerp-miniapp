@@ -1,6 +1,5 @@
 node_modules/
-.DS_Store
 unpackage/
-dist/
 .hbuilderx/
+.DS_Store
 *.log

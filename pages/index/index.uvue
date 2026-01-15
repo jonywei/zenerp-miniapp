@@ -1,7 +1,7 @@
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="nav-header">
-			<text class="brand">ZenMatrix</text>
+			<text class="brand">ZenERP</text>
 			<view class="avatar-circle" @click="goProfile">
 				<text class="avatar-txt">{{ userInitials }}</text>
 			</view>
@@ -38,7 +38,6 @@
 						<text class="item-desc">{{ item['change_message'] || item['desc'] || item['action_flag'] || '业务操作' }}</text>
 						<text class="item-time">{{ item['time'] }}</text>
 					</view>
-					
 					<text v-if="hasAmount(item)" class="item-amount" :class="item['is_income'] ? 'text-red' : 'text-green'">
 						{{ item['is_income'] ? '+' : '-' }} {{ formatNum(item['amount']) }}
 					</text>
@@ -59,7 +58,6 @@
 
 <script>
 	import { request } from '@/common/api.js';
-
 	export default {
 		data() {
 			return {
@@ -68,7 +66,6 @@
 			}
 		},
 		onPullDownRefresh() { this.loadData(true); },
-		// ⚠️ onShow 强刷
 		onShow() { this.loadData(false); this.updateUser(); },
 		methods: {
 			updateUser() {
@@ -106,7 +103,7 @@
 </script>
 
 <style>
-	/* 样式保持不变 */
+	/* 样式保持不变，直接复用原样式 */
 	.page { background-color: #f8faff; flex: 1; padding: 0 30rpx; }
 	.nav-header { flex-direction: row; justify-content: space-between; align-items: center; margin-top: 20rpx; margin-bottom: 20rpx; }
 	.brand { font-size: 40rpx; font-weight: 900; color: #1e293b; letter-spacing: -1rpx; }
