@@ -44,8 +44,22 @@
 				</view>
 			</view>
 
+			<view class="grid-container mb-3 bg-blue-light p-2 rounded">
+				<view class="grid-cell">
+					<text class="field-label text-blue">入库数量</text>
+					<input class="input-box font-bold" type="number" v-model="form['quantity']" placeholder="1" />
+				</view>
+				<view class="grid-cell" style="align-items: center;">
+					<text class="field-label text-blue">必须序列号?</text>
+					<switch :checked="form['need_sn']" @change="onSnChange" color="#2563eb" style="transform:scale(0.8)"/>
+				</view>
+			</view>
+			<view class="tip-text text-gray mb-3" style="text-align: center; font-size: 24rpx;">
+				{{ form['need_sn'] ? '⚠️ 生成“待入库”状态，需后续扫码转正' : '✅ 直接生成“在库”状态，自动产生流水号' }}
+			</view>
+
 			<view class="sn-box">
-				<text class="field-label" style="color: #b45309;">🔢 序列号/IMEI/SN码 ({{ isSnRequired ? '必填' : '选填' }})</text>
+				<text class="field-label" style="color: #b45309;">🔢 序列号/IMEI/SN码 ({{ form['need_sn'] ? '必填' : '选填/基础码' }})</text>
 				<view class="sn-input-wrapper">
 					<input class="sn-input" v-model="form['sn']" :placeholder="snPlaceholder" />
 					<view class="scan-btn" @click="scanCode">扫</view>
@@ -92,16 +106,16 @@
 		<view class="form-card">
 			<view class="card-header-line">
 				<view class="purple-bar"></view>
-				<text class="header-text">成本与支付</text>
+				<text class="header-text">成本与支付 (单价)</text>
 			</view>
 			
 			<view class="grid-container">
 				<view class="grid-cell">
-					<text class="field-label">入库成本 (¥) <text class="req">*</text></text>
+					<text class="field-label">单个成本 (¥) <text class="req">*</text></text>
 					<input class="input-box font-bold text-red" type="digit" v-model="form['cost_price']" placeholder="0.00" />
 				</view>
 				<view class="grid-cell">
-					<text class="field-label">实付金额 (¥)</text>
+					<text class="field-label">实付总额 (¥)</text>
 					<input class="input-box font-bold" type="digit" v-model="form['paid_amount']" placeholder="0 (挂账)" />
 				</view>
 			</view>
@@ -135,30 +149,47 @@
 	</scroll-view>
 
 	<view class="fixed-footer">
-		<button class="btn-submit" :loading="loading" @click="submit">确认入库存档</button>
+		<button class="btn-submit" :loading="loading" @click="submit">
+			{{ form['quantity'] > 1 ? `批量入库 (${form['quantity']}件)` : '确认入库存档' }}
+		</button>
 	</view>
 
 	<view v-if="showAddModal" class="modal-mask" style="z-index: 9999;"><view class="modal-center"><view class="modal-title">新增供应商</view><input class="modal-input" v-model="newContact['name']" placeholder="姓名 (必填)" /><input class="modal-input" v-model="newContact['phone']" placeholder="电话" type="number" /><input class="modal-input" v-model="newContact['address']" placeholder="地址/档口" /><view class="modal-btns"><view class="modal-btn cancel" @click="showAddModal=false">取消</view><view class="modal-btn confirm" @click="addContact">保存</view></view></view></view>
-	<view v-if="showSuccess" class="modal-mask" style="z-index: 9999;"><view class="modal-center"><view class="success-icon">✅</view><view class="modal-title">入库成功</view><view class="code-box"><text class="code-label">系统编码</text><text class="code-val">{{ result['zencode'] }}</text></view><view class="name-box"><text class="name-val">{{ result['name'] }}</text></view><button class="btn-primary" @click="resetForm">继续下一单</button></view></view>
+	<view v-if="showSuccess" class="modal-mask" style="z-index: 9999;"><view class="modal-center"><view class="success-icon">✅</view><view class="modal-title">{{ form['quantity']>1 ? '批量入库成功' : '入库成功' }}</view><view class="code-box"><text class="code-label">系统编码</text><text class="code-val">{{ result['zencode'] }}</text></view><view class="name-box"><text class="name-val">{{ result['name'] }}</text></view><button class="btn-primary" @click="resetForm">继续下一单</button></view></view>
 </template>
 
 <script>
 	import { request } from '@/common/api.js';
-	const UPLOAD_URL = 'https://a.corezen.site/api/products/';
+	const UPLOAD_URL = 'https://erp.corezen.site/api/products/'; // 🟢 请确认此域名正确
 
 	export default {
 		data() {
 			return {
 				loading: false,
 				types: [ { key: 'ZJ', name: '电脑主机' }, { key: 'PH', name: '手机' }, { key: 'TB', name: '平板' }, { key: 'XS', name: '显示器' }, { key: 'SJ', name: '散件' }, { key: 'ZX', name: '杂项' } ],
-				// 🟢 增加 sn 字段
-				form: { category: 'ZJ', supplier_id: '', name: '', sn: '', cpu: '', gpu: '', ram: '', disk: '', note: '', cost_price: '', paid_amount: '', account_id: '', peer_price: '', retail_price: '' } as any,
-				contacts: [], accounts: [], contactNames: ['加载中...'], accountNames: [], currentContactName: '请选择...', currentAccountName: '选择支付账户', previewUrl: '', tempFilePath: '', showSuccess: false, showAddModal: false, result: { zencode: '', name: '', has_price: true } as any, newContact: { name: '', phone: '', address: '' } as any,
-				isSnRequired: false, snPlaceholder: '可扫码或手动输入'
+				
+				// 🟢 核心修改：新增 quantity 和 need_sn
+				form: { 
+					category: 'ZJ', supplier_id: '', name: '', sn: '', 
+					cpu: '', gpu: '', ram: '', disk: '', note: '', 
+					cost_price: '', paid_amount: '', account_id: '', 
+					peer_price: '', retail_price: '',
+					quantity: 1,      // 默认1件
+					need_sn: false    // 默认不需要序列号
+				},
+				
+				contacts: [], accounts: [], contactNames: ['加载中...'], accountNames: [], currentContactName: '请选择...', currentAccountName: '选择支付账户', previewUrl: '', tempFilePath: '', showSuccess: false, showAddModal: false, result: { zencode: '', name: '', has_price: true }, newContact: { name: '', phone: '', address: '' },
+				snPlaceholder: '选填，留空自动生成'
 			}
 		},
 		computed: {
-			debtAmount(): number { let cost = parseFloat(this.form['cost_price'] || '0'); let paid = parseFloat(this.form['paid_amount'] || '0'); return cost - paid; },
+			debtAmount(): number { 
+				// 🟢 欠款计算：(单价 * 数量) - 已付
+				let cost = parseFloat(this.form['cost_price'] || '0');
+				let num = parseInt(this.form['quantity'] || '1');
+				let paid = parseFloat(this.form['paid_amount'] || '0'); 
+				return (cost * num) - paid; 
+			},
 			showAccountSelect(): boolean { let paid = parseFloat(this.form['paid_amount'] || '0'); return paid > 0; },
 			labelCPU(): string { const c = this.form['category']; if(c=='PH'||c=='TB') return '品牌 (Brand)'; if(c=='XS') return '品牌'; return 'CPU'; },
 			phCPU(): string { const c = this.form['category']; if(c=='PH'||c=='TB') return '如 Apple'; if(c=='XS') return '如 三星'; return 'i5-12400F'; },
@@ -175,21 +206,32 @@
 				try {
 					const resC = await request({ url: '/api/contacts/?page_size=1000' });
 					const resA = await request({ url: '/api/analysis/accounting/' });
-					if (resC) { let list = (resC as any)['results'] || resC; this.contacts = list as any[]; this.contactNames = ['🛒 散客 (无供应商)']; this.contactNames.push(...this.contacts.map((c: any): string => c['name'])); }
-					if (resA) { this.accounts = (resA as any)['accounts']; this.accountNames = this.accounts.map((a: any): string => a['name']); if (this.accounts.length > 0) { this.form['account_id'] = this.accounts[0]['id']; this.currentAccountName = this.accounts[0]['name']; } }
+					if (resC) { let list = resC['results'] || resC; this.contacts = list; this.contactNames = ['🛒 散客 (无供应商)']; this.contactNames.push(...this.contacts.map(c => c['name'])); }
+					if (resA) { this.accounts = resA['accounts']; this.accountNames = this.accounts.map(a => a['name']); if (this.accounts.length > 0) { this.form['account_id'] = this.accounts[0]['id']; this.currentAccountName = this.accounts[0]['name']; } }
 				} catch (e) {}
 			},
-			changeCategory(key: string) {
+			changeCategory(key) {
 				this.form['category'] = key;
-				// 🟢 手机平板强制输入SN
+				// 🟢 手机平板默认开启序列号
 				if (key === 'PH' || key === 'TB') {
-					this.isSnRequired = true;
-					this.snPlaceholder = '📱 必须填写 IMEI / SN';
+					this.form['need_sn'] = true;
 				} else {
-					this.isSnRequired = false;
-					this.snPlaceholder = '选填，留空自动生成';
+					this.form['need_sn'] = false;
 				}
+				this.updateSnPlaceholder();
 				this.autoName();
+			},
+			// 🟢 监听开关
+			onSnChange(e) {
+				this.form['need_sn'] = e.detail.value;
+				this.updateSnPlaceholder();
+			},
+			updateSnPlaceholder() {
+				if (this.form['need_sn']) {
+					this.snPlaceholder = '📱 必须填写 IMEI (入库后需扫码)';
+				} else {
+					this.snPlaceholder = '选填，留空自动生成流水号';
+				}
 			},
 			scanCode() {
 				uni.scanCode({
@@ -202,25 +244,26 @@
 			autoName() {
 				const c = this.form['category'];
 				if (c == 'SJ' || c == 'ZX') return;
-				let parts: string[] = [];
+				let parts = [];
 				let v1 = this.form['cpu']; let v2 = this.form['ram']; let v3 = this.form['disk']; let v4 = this.form['gpu']; let note = this.form['note'];
 				if (c == 'PH' || c == 'TB') { if(v1) parts.push(v1); if(v2) parts.push(v2); if(v3) parts.push(v3); if(v4) parts.push(v4); if(note) parts.push(note); } 
 				else if (c == 'XS') { if(v1) parts.push(v1); if(v2) parts.push(v2); if(v3) parts.push(v3); if(v4) parts.push(v4); if(note) parts.push(note); } 
 				else { if(v1) parts.push(v1); if(v2) parts.push(v2); if(v3) parts.push(v3); if (v4) { parts.push(v4); } else if (v1) { parts.push("核显主机"); } if(note) parts.push(note); }
 				this.form['name'] = parts.join(' ');
 			},
-			onContactChange(e: any) { let index = e.detail.value as number; if (index == 0) { this.form['supplier_id'] = '0'; this.currentContactName = '🛒 散客'; } else { let contact = this.contacts[index - 1]; this.form['supplier_id'] = contact['id']; this.currentContactName = contact['name']; } },
-			onAccountChange(e: any) { let index = e.detail.value as number; let acc = this.accounts[index]; this.form['account_id'] = acc['id']; this.currentAccountName = acc['name']; },
+			onContactChange(e) { let index = e.detail.value; if (index == 0) { this.form['supplier_id'] = '0'; this.currentContactName = '🛒 散客'; } else { let contact = this.contacts[index - 1]; this.form['supplier_id'] = contact['id']; this.currentContactName = contact['name']; } },
+			onAccountChange(e) { let index = e.detail.value; let acc = this.accounts[index]; this.form['account_id'] = acc['id']; this.currentAccountName = acc['name']; },
 			chooseImage() { uni.chooseImage({ count: 1, sizeType: ['compressed'], success: (res) => { this.tempFilePath = res.tempFilePaths[0]; this.previewUrl = res.tempFilePaths[0]; } }); },
-			async addContact() { if (!this.newContact['name']) return uni.showToast({title:'姓名必填', icon:'none'}); try { const res = await request({ url: '/api/contacts/', method: 'POST', data: this.newContact }); uni.showToast({title:'添加成功'}); this.showAddModal = false; this.newContact = { name:'', phone:'', address:'' }; await this.loadData(); if (res && (res as any)['id']) { this.form['supplier_id'] = (res as any)['id']; this.currentContactName = (res as any)['name']; } } catch (e) {} },
+			async addContact() { if (!this.newContact['name']) return uni.showToast({title:'姓名必填', icon:'none'}); try { const res = await request({ url: '/api/contacts/', method: 'POST', data: this.newContact }); uni.showToast({title:'添加成功'}); this.showAddModal = false; this.newContact = { name:'', phone:'', address:'' }; await this.loadData(); if (res && res['id']) { this.form['supplier_id'] = res['id']; this.currentContactName = res['name']; } } catch (e) {} },
 			async submit() { 
 				if (!this.form['supplier_id']) return uni.showToast({title:'必须选供应商', icon:'none'});
-				if (!this.form['cost_price']) return uni.showToast({title:'请填入库成本', icon:'none'}); 
-				// 🟢 校验 SN
-				if (this.isSnRequired && !this.form['sn']) return uni.showToast({title:'请填写/扫描序列号', icon:'none'});
+				if (!this.form['cost_price']) return uni.showToast({title:'请填入库成本', icon:'none'});
+				// 🟢 校验优化：如果是单个入库且必须SN，才校验SN
+				if (this.form['quantity'] == 1 && this.form['need_sn'] && !this.form['sn']) return uni.showToast({title:'请填写/扫描序列号', icon:'none'});
 				
 				this.loading = true; 
 				let formData = JSON.parse(JSON.stringify(this.form));
+				
 				const doRequest = async () => {
 					try { 
 						const res = await request({ url: '/api/products/', method: 'POST', data: formData });
@@ -233,14 +276,27 @@
 					uni.uploadFile({ url: UPLOAD_URL, filePath: this.tempFilePath, name: 'image', formData: formData, header: { 'Cookie': sessionId ? `sessionid=${sessionId}` : '' }, success: (uploadRes) => { this.loading = false; if (uploadRes.statusCode == 201 || uploadRes.statusCode == 200) { let data = JSON.parse(uploadRes.data); this.handleSuccess(data); } else { uni.showToast({title:'上传失败', icon:'none'}); } }, fail: () => { doRequest(); } });
 				} else { doRequest(); } 
 			},
-			handleSuccess(data: any) { this.result['zencode'] = data['zencode']; this.result['name'] = data['name']; let hasPeer = !!this.form['peer_price']; let hasRetail = !!this.form['retail_price']; this.result['has_price'] = hasPeer || hasRetail; this.showSuccess = true; },
-			resetForm() { this.showSuccess = false; let cat = this.form['category']; let sup = this.form['supplier_id']; let acc = this.form['account_id']; this.form = { category: cat, supplier_id: sup, name: '', sn: '', cpu: '', gpu: '', ram: '', disk: '', note: '', cost_price: '', paid_amount: '', account_id: acc, peer_price: '', retail_price: '' }; this.previewUrl = ''; this.tempFilePath = ''; this.changeCategory(cat); }
+			handleSuccess(data) { this.result['zencode'] = data['zencode']; this.result['name'] = data['name']; let hasPeer = !!this.form['peer_price']; let hasRetail = !!this.form['retail_price']; this.result['has_price'] = hasPeer || hasRetail; this.showSuccess = true; },
+			resetForm() { 
+				this.showSuccess = false;
+				let cat = this.form['category']; let sup = this.form['supplier_id']; let acc = this.form['account_id'];
+				// 重置表单，保留必要信息
+				this.form = { 
+					category: cat, supplier_id: sup, name: '', sn: '', 
+					cpu: '', gpu: '', ram: '', disk: '', note: '', 
+					cost_price: '', paid_amount: '', account_id: acc, 
+					peer_price: '', retail_price: '',
+					quantity: 1,      // 🟢 重置为1
+					need_sn: this.form['need_sn'] // 🟢 保持开关状态
+				};
+				this.previewUrl = ''; this.tempFilePath = ''; this.changeCategory(cat); 
+			}
 		}
 	}
 </script>
 
 <style>
-	/* ...保留原样式... */
+	/* ...样式保持不变，新增部分... */
 	.page { padding: 30rpx; background-color: #f8fafc; height: 100vh; box-sizing: border-box; }
 	.form-card { background-color: #fff; border-radius: 20rpx; padding: 30rpx; margin-bottom: 30rpx; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02); }
 	.card-header-line { display: flex; flex-direction: row; align-items: center; margin-bottom: 30rpx; }
@@ -258,7 +314,7 @@
 	.picker-full { width: 100%; }
 	.picker-layout { display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
 	.input-val { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-	.text-dark { color: #333; } .text-light { color: #94a3b8; } 
+	.text-dark { color: #333; } .text-light { color: #94a3b8; } .text-blue { color: #2563eb; }
 	.icon-arrow { font-size: 24rpx; color: #cbd5e1; margin-left: 10rpx; font-weight: bold; }
 	.row-center { display: flex; flex-direction: row; align-items: center; gap: 20rpx; }
 	.flex-1 { flex: 1; }
@@ -283,12 +339,12 @@
 	.tip-text { font-size: 24rpx; font-weight: bold; }
 	.border-top { border-top: 1px solid #f1f5f9; }
 	.pt-3 { padding-top: 30rpx; }
-	/* 🟢 新增 SN 样式 */
 	.sn-box { background-color: #fffbeb; border: 1px solid #fcd34d; border-radius: 16rpx; padding: 20rpx; margin-bottom: 30rpx; }
 	.sn-input-wrapper { display: flex; flex-direction: row; margin-top: 10rpx; gap: 10rpx; }
 	.sn-input { flex: 1; height: 80rpx; background-color: #fff; border: 1px solid #fcd34d; border-radius: 12rpx; padding: 0 20rpx; font-size: 30rpx; }
 	.scan-btn { width: 100rpx; height: 80rpx; background-color: #f59e0b; color: #fff; display: flex; align-items: center; justify-content: center; border-radius: 12rpx; font-weight: bold; }
-	/* 弹窗样式略 (保持不变) */
+	.bg-blue-light { background-color: #eff6ff; border: 1px solid #bfdbfe; }
+	/* 弹窗样式 */
 	.modal-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); z-index: 999; display: flex; align-items: center; justify-content: center; }
 	.modal-center { background-color: #fff; width: 600rpx; border-radius: 24rpx; padding: 40rpx; display: flex; flex-direction: column; }
 	.modal-title { text-align: center; font-size: 34rpx; font-weight: bold; margin-bottom: 30rpx; }
