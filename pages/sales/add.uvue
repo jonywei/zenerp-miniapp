@@ -15,8 +15,14 @@
 		<view class="bottom-placeholder"></view>
 	</scroll-view>
 	<view class="footer-bar"><view class="footer-info"><text class="footer-count">已选 {{ selectedIds.length }} 台</text><text class="footer-total">¥ {{ totalPrice }}</text></view><button class="btn-checkout" :class="selectedIds.length > 0 ? '' : 'btn-disabled'" @click="openCheckout">结算</button></view>
+	
 	<view v-if="showCheckout" class="modal-mask"><view class="modal-box"><text class="modal-title">确认出库</text><view class="field-box"><text class="label-gray">客户 (必选)</text><view class="row-between"><picker class="flex-1" mode="selector" :range="contactNames" @change="onContactChange"><view class="picker-box"><text class="picker-text">{{ currentContactName }}</text><text class="picker-arrow">▼</text></view></picker><button class="btn-mini" @click="showAddModal = true">+</button></view></view><view class="finance-card"><view class="row-between mb-2"><text class="label-sm">应收总额</text><text class="text-bold">¥ {{ totalPrice }}</text></view><view class="row-input"><text class="label-input">实收</text><input class="input-money" type="digit" v-model="saleForm['received_amount']" /></view><view class="debt-row"><text class="text-red" v-if="debtAmount > 0">⚠️ 剩余 ¥{{ debtAmount.toFixed(2) }} 计入应收</text><text class="text-red" v-else-if="receivedVal == 0">⚠️ 全额挂账</text><text class="text-green" v-else>✅ 全额现结</text></view><view v-if="receivedVal > 0" class="account-row"><picker mode="selector" :range="accountNames" @change="onAccountChange"><view class="picker-inner"><text>{{ currentAccountName }}</text><text>▼</text></view></picker></view></view><view class="modal-btns"><button class="btn-cancel" @click="showCheckout = false">取消</button><button class="btn-confirm" :loading="loading" @click="confirmSubmit">确认成交</button></view></view></view>
-	<view v-if="showAddModal" class="modal-mask" style="z-index: 999;"><view class="modal-box"><text class="modal-title">新建客户</text><input class="input-modal" v-model="newContact['name']" placeholder="姓名 (必填)" /><input class="input-modal" v-model="newContact['phone']" placeholder="电话 (选填)" /><input class="input-modal" v-model="newContact['address']" placeholder="地址/档口 (选填)" /><view class="modal-btns"><button class="btn-cancel" @click="showAddModal = false">取消</button><button class="btn-confirm" @click="addContact">保存</button></view></view></view>
+	
+	<view v-if="showAddModal" class="modal-mask" style="z-index: 999;"><view class="modal-box"><text class="modal-title">新建客户</text>
+		<input class="input-modal" v-model="newContact['name']" placeholder="姓名 (必填)" />
+		<input class="input-modal" v-model="newContact['phone']" placeholder="电话 (选填)" />
+		<input class="input-modal" v-model="newContact['address']" placeholder="地址/档口 (选填)" />
+		<view class="modal-btns"><button class="btn-cancel" @click="showAddModal = false">取消</button><button class="btn-confirm" @click="addContact">保存</button></view></view></view>
 </template>
 <script>
 	import { request } from '@/common/api.js';
@@ -27,7 +33,17 @@
 		watch: { showCheckout(val: boolean) { if (val) { this.saleForm['received_amount'] = this.totalPrice; if (!this.saleForm['account_id'] && this.accounts.length > 0) { this.saleForm['account_id'] = this.accounts[0]['id']; this.currentAccountName = this.accounts[0]['name']; } } } },
 		methods: {
 			noop() {},
-			async loadData() { try { const pRes = await request({ url: '/api/products/?status=IN_STOCK' }); const cRes = await request({ url: '/api/contacts/' }); const aRes = await request({ url: '/api/analysis/accounting/' }); if (pRes) { let list = (pRes as any)['results'] || pRes; this.products = (list as any[]).filter((p: any): boolean => p['status'] == 'IN_STOCK'); } if (cRes) { let list = (cRes as any)['results'] || cRes; this.contacts = list as any[]; this.contactNames = this.contacts.map((c: any): string => { let phone = c['phone'] ? `(${c['phone']})` : ''; return `${c['name']} ${phone}`; }); } if (aRes) { this.accounts = (aRes as any)['accounts']; this.accountNames = this.accounts.map((a: any): string => a['name']); } } catch(e) {} },
+			async loadData() { try { const pRes = await request({ url: '/api/products/?status=IN_STOCK' }); const cRes = await request({ url: '/api/contacts/' }); const aRes = await request({ url: '/api/analysis/accounting/' });
+			if (pRes) { let list = (pRes as any)['results'] || pRes; this.products = (list as any[]).filter((p: any): boolean => p['status'] == 'IN_STOCK'); } 
+			if (cRes) { let list = (cRes as any)['results'] || cRes; this.contacts = list as any[];
+				// 🟢 优化：显示地址，防止重名
+				this.contactNames = this.contacts.map((c: any): string => { 
+					let phone = c['phone'] ? `(${c['phone']})` : ''; 
+					let addr = c['address'] ? ` [${c['address']}]` : '';
+					return `${c['name']}${phone}${addr}`; 
+				});
+			} 
+			if (aRes) { this.accounts = (aRes as any)['accounts']; this.accountNames = this.accounts.map((a: any): string => a['name']); } } catch(e) {} },
 			isSelected(p: any): boolean { let id = p['id'] as string; return this.selectedIds.includes(String(id)); },
 			toggleSelect(p: any) { let id = String(p['id']); let idx = this.selectedIds.indexOf(id); if (idx > -1) { this.selectedIds.splice(idx, 1); } else { this.selectedIds.push(id); let price = p['retail_price'] || p['peer_price'] || p['cost_price']; this.sellPrices[id] = String(price); } },
 			getSellPrice(p: any): string { let id = String(p['id']); return this.sellPrices[id] || ''; },
@@ -35,12 +51,17 @@
 			openCheckout() { if (this.selectedIds.length == 0) return; this.showCheckout = true; },
 			onContactChange(e: any) { let index = e.detail.value as number; let c = this.contacts[index]; this.saleForm['contact_id'] = c['id']; this.currentContactName = c['name']; },
 			onAccountChange(e: any) { let index = e.detail.value as number; let acc = this.accounts[index]; this.saleForm['account_id'] = acc['id']; this.currentAccountName = acc['name']; },
-			async addContact() { if (!this.newContact['name']) return uni.showToast({title:'姓名必填', icon:'none'}); try { const res = await request({ url: '/api/contacts/', method: 'POST', data: this.newContact }); if (res) { uni.showToast({title:'添加成功'}); await this.loadData(); let newId = (res as any)['id']; let newName = (res as any)['name']; this.saleForm['contact_id'] = newId; this.currentContactName = newName; this.showAddModal = false; this.newContact = { name:'', phone:'', address:'' }; } } catch(e) {} },
+			
+			// 🟢 新增客户逻辑
+			async addContact() { if (!this.newContact['name']) return uni.showToast({title:'姓名必填', icon:'none'});
+			try { const res = await request({ url: '/api/contacts/', method: 'POST', data: this.newContact }); if (res) { uni.showToast({title:'添加成功'}); await this.loadData(); let newId = (res as any)['id']; let newName = (res as any)['name']; this.saleForm['contact_id'] = newId; this.currentContactName = newName; this.showAddModal = false; this.newContact = { name:'', phone:'', address:'' }; } } catch(e) {} },
+			
 			async confirmSubmit() { if (!this.saleForm['contact_id']) return uni.showToast({title:'请选择客户', icon:'none'}); if (this.receivedVal > 0 && !this.saleForm['account_id']) return uni.showToast({title:'请选收款账户', icon:'none'}); this.loading = true; try { for (let i = 0; i < this.selectedIds.length; i++) { let id = this.selectedIds[i]; let currentReceived = (i == 0) ? this.receivedVal : 0; await request({ url: `/api/products/${id}/sell/`, method: 'POST', data: { contact_id: this.saleForm['contact_id'], price: this.sellPrices[id], received_amount: currentReceived, account_id: this.saleForm['account_id'] } }); } uni.showToast({ title: '出库成功' }); this.showCheckout = false; this.selectedIds = []; this.sellPrices = {}; this.loadData(); } catch(e) { uni.showToast({ title: '提交失败', icon: 'none' }); } finally { this.loading = false; } }
 		}
 	}
 </script>
 <style>
+	/* 样式复用原版 */
 	.page { background-color: #f5f7fa; height: 100%; padding: 20rpx; }
 	.text-bold { font-weight: bold; } .text-red { color: #ef4444; font-size: 24rpx; } .text-green { color: #10b981; font-size: 24rpx; }
 	.search-bar { background-color: #fff; padding: 20rpx; border-radius: 20rpx; margin-bottom: 24rpx; } .search-input { font-size: 28rpx; height: 60rpx; }

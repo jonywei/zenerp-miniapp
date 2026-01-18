@@ -1,6 +1,5 @@
 <template>
 	<scroll-view class="page" scroll-y="true">
-		
 		<view class="filter-card">
 			<view class="card-header">
 				<view class="blue-bar"></view>
@@ -51,7 +50,7 @@
 		</view>
 
 		<view class="section-title">
-			<text class="title-text">交易明细 ({{ summary['count'] }}单)</text>
+			<text class="title-text">交易明细 ({{ summary['count'] || list.length }}单)</text>
 		</view>
 		
 		<view class="list-box">
@@ -101,7 +100,6 @@
 
 <script>
 	import { request } from '@/common/api.js';
-
 	export default {
 		data() {
 			return {
@@ -163,74 +161,51 @@
 </script>
 
 <style>
-	.page { padding: 20rpx; background-color: #f8fafc; height: 100%; }
-	
-	/* 筛选卡片优化 */
-	.filter-card { background-color: #fff; border-radius: 20rpx; margin-bottom: 30rpx; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02); overflow: hidden; }
-	.card-header { padding: 24rpx; border-bottom: 1px solid #f1f5f9; display: flex; flex-direction: row; align-items: center; }
-	.blue-bar { width: 8rpx; height: 32rpx; background-color: #2563eb; border-radius: 4rpx; margin-right: 16rpx; }
-	.header-text { font-size: 30rpx; font-weight: bold; color: #1e293b; }
-	.filter-body { padding: 30rpx; }
-	
-	.filter-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
-	.mt-3 { margin-top: 30rpx; }
-	.label { font-size: 28rpx; font-weight: bold; color: #64748b; width: 120rpx; }
-	
-	.date-picker-box { flex: 1; display: flex; flex-direction: row; align-items: center; justify-content: flex-end; }
-	.date-txt { background-color: #f1f5f9; padding: 10rpx 20rpx; border-radius: 12rpx; font-size: 26rpx; color: #333; font-weight: bold; }
-	.split { margin: 0 16rpx; color: #cbd5e1; }
-	
-	.staff-picker { flex: 1; }
-	.staff-box { 
-		background-color: #f1f5f9; height: 80rpx; border-radius: 12rpx; 
-		display: flex; flex-direction: row; align-items: center; justify-content: space-between; 
-		padding: 0 20rpx; 
-	}
-	.staff-txt { font-size: 28rpx; font-weight: bold; }
-	.text-blue { color: #2563eb; } .text-gray { color: #64748b; }
-	.arrow { color: #cbd5e1; font-size: 22rpx; }
-	
-	.btn-query { 
-		background-color: #2563eb; color: #fff; height: 88rpx; line-height: 88rpx; 
-		font-size: 32rpx; font-weight: bold; border-radius: 16rpx; margin-top: 40rpx; 
-		box-shadow: 0 8rpx 20rpx rgba(37,99,235,0.25); border: none;
-	}
-	
-	/* 三色看板 */
-	.grid-3 { flex-direction: row; justify-content: space-between; gap: 20rpx; margin-bottom: 40rpx; }
-	.data-item { flex: 1; background-color: #fff; padding: 24rpx 10rpx; border-radius: 20rpx; align-items: center; border-top-width: 6rpx; border-top-style: solid; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02); }
-	.border-blue { border-top-color: #3b82f6; } .border-gray { border-top-color: #94a3b8; } .border-yellow { border-top-color: #eab308; }
-	.data-label { font-size: 22rpx; margin-bottom: 10rpx; } .text-blue { color: #3b82f6; } .text-gray { color: #64748b; } .text-yellow { color: #ca8a04; }
-	.data-val { font-size: 30rpx; font-weight: 900; color: #1e293b; }
-	
-	.section-title { margin-bottom: 20rpx; padding-left: 10rpx; } .title-text { font-size: 28rpx; font-weight: bold; color: #475569; }
-	
-	/* 列表卡片 */
-	.list-box { padding-bottom: 60rpx; }
-	.card { background-color: #fff; border-radius: 20rpx; padding: 24rpx; margin-bottom: 20rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.02); }
-	.card-row { display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
-	.border-b { border-bottom: 1px solid #f1f5f9; } .mb-1 { margin-bottom: 8rpx; } .mb-2 { margin-bottom: 16rpx; } .pb-2 { padding-bottom: 16rpx; }
-	
-	.p-name { font-size: 30rpx; font-weight: bold; color: #1e293b; flex: 1; overflow: hidden; text-overflow: ellipsis; lines: 1; }
-	.profit-badge { padding: 4rpx 12rpx; border-radius: 8rpx; margin-left: 10rpx; }
-	.bg-green { background-color: #dcfce7; } .bg-red { background-color: #fee2e2; }
-	.profit-text { font-size: 24rpx; font-weight: 900; }
-	.bg-green .profit-text { color: #16a34a; } .bg-red .profit-text { color: #ef4444; }
-	
-	.label-sm { font-size: 24rpx; color: #94a3b8; margin-right: 8rpx; }
-	.text-val { font-size: 26rpx; color: #475569; }
-	.monospace { font-family: monospace; background-color: #f1f5f9; padding: 0 8rpx; border-radius: 6rpx; }
-	
-	.footer-row { margin-top: 20rpx; padding-top: 20rpx; border-top: 1px solid #f1f5f9; display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
-	.col { display: flex; flex-direction: column; }
-	.text-money { font-size: 32rpx; font-weight: bold; color: #1e293b; }
-	
-	.tags-group { display: flex; flex-direction: row; gap: 12rpx; }
-	.tag-pill { display: flex; flex-direction: row; align-items: center; padding: 6rpx 16rpx; border-radius: 30rpx; }
-	.blue { background-color: #eff6ff; } .purple { background-color: #faf5ff; }
-	.tag-icon { font-size: 20rpx; margin-right: 6rpx; }
-	.tag-txt { font-size: 22rpx; font-weight: bold; }
-	.blue .tag-txt { color: #2563eb; } .purple .tag-txt { color: #9333ea; }
-	
-	.empty-tip { padding: 60rpx; align-items: center; } .empty-text { font-size: 24rpx; color: #ccc; }
+/* 样式复用原版 */
+.page { padding: 20rpx; background-color: #f8fafc; height: 100%; }
+.filter-card { background-color: #fff; border-radius: 20rpx; margin-bottom: 30rpx; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02); overflow: hidden; }
+.card-header { padding: 24rpx; border-bottom: 1px solid #f1f5f9; display: flex; flex-direction: row; align-items: center; }
+.blue-bar { width: 8rpx; height: 32rpx; background-color: #2563eb; border-radius: 4rpx; margin-right: 16rpx; }
+.header-text { font-size: 30rpx; font-weight: bold; color: #1e293b; }
+.filter-body { padding: 30rpx; }
+.filter-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+.mt-3 { margin-top: 30rpx; }
+.label { font-size: 28rpx; font-weight: bold; color: #64748b; width: 120rpx; }
+.date-picker-box { flex: 1; display: flex; flex-direction: row; align-items: center; justify-content: flex-end; }
+.date-txt { background-color: #f1f5f9; padding: 10rpx 20rpx; border-radius: 12rpx; font-size: 26rpx; color: #333; font-weight: bold; }
+.split { margin: 0 16rpx; color: #cbd5e1; }
+.staff-picker { flex: 1; }
+.staff-box { background-color: #f1f5f9; height: 80rpx; border-radius: 12rpx; display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 0 20rpx; }
+.staff-txt { font-size: 28rpx; font-weight: bold; }
+.text-blue { color: #2563eb; } .text-gray { color: #64748b; }
+.arrow { color: #cbd5e1; font-size: 22rpx; }
+.btn-query { background-color: #2563eb; color: #fff; height: 88rpx; line-height: 88rpx; font-size: 32rpx; font-weight: bold; border-radius: 16rpx; margin-top: 40rpx; box-shadow: 0 8rpx 20rpx rgba(37,99,235,0.25); border: none; }
+.grid-3 { flex-direction: row; justify-content: space-between; gap: 20rpx; margin-bottom: 40rpx; }
+.data-item { flex: 1; background-color: #fff; padding: 24rpx 10rpx; border-radius: 20rpx; align-items: center; border-top-width: 6rpx; border-top-style: solid; box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.02); }
+.border-blue { border-top-color: #3b82f6; } .border-gray { border-top-color: #94a3b8; } .border-yellow { border-top-color: #eab308; }
+.data-label { font-size: 22rpx; margin-bottom: 10rpx; } .text-blue { color: #3b82f6; } .text-gray { color: #64748b; } .text-yellow { color: #ca8a04; }
+.data-val { font-size: 30rpx; font-weight: 900; color: #1e293b; }
+.section-title { margin-bottom: 20rpx; padding-left: 10rpx; } .title-text { font-size: 28rpx; font-weight: bold; color: #475569; }
+.list-box { padding-bottom: 60rpx; }
+.card { background-color: #fff; border-radius: 20rpx; padding: 24rpx; margin-bottom: 20rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.02); }
+.card-row { display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
+.border-b { border-bottom: 1px solid #f1f5f9; } .mb-1 { margin-bottom: 8rpx; } .mb-2 { margin-bottom: 16rpx; } .pb-2 { padding-bottom: 16rpx; }
+.p-name { font-size: 30rpx; font-weight: bold; color: #1e293b; flex: 1; overflow: hidden; text-overflow: ellipsis; lines: 1; }
+.profit-badge { padding: 4rpx 12rpx; border-radius: 8rpx; margin-left: 10rpx; }
+.bg-green { background-color: #dcfce7; } .bg-red { background-color: #fee2e2; }
+.profit-text { font-size: 24rpx; font-weight: 900; }
+.bg-green .profit-text { color: #16a34a; } .bg-red .profit-text { color: #ef4444; }
+.label-sm { font-size: 24rpx; color: #94a3b8; margin-right: 8rpx; }
+.text-val { font-size: 26rpx; color: #475569; }
+.monospace { font-family: monospace; background-color: #f1f5f9; padding: 0 8rpx; border-radius: 6rpx; }
+.footer-row { margin-top: 20rpx; padding-top: 20rpx; border-top: 1px solid #f1f5f9; display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.text-money { font-size: 32rpx; font-weight: bold; color: #1e293b; }
+.tags-group { display: flex; flex-direction: row; gap: 12rpx; }
+.tag-pill { display: flex; flex-direction: row; align-items: center; padding: 6rpx 16rpx; border-radius: 30rpx; }
+.blue { background-color: #eff6ff; } .purple { background-color: #faf5ff; }
+.tag-icon { font-size: 20rpx; margin-right: 6rpx; }
+.tag-txt { font-size: 22rpx; font-weight: bold; }
+.blue .tag-txt { color: #2563eb; } .purple .tag-txt { color: #9333ea; }
+.empty-tip { padding: 60rpx; align-items: center; } .empty-text { font-size: 24rpx; color: #ccc; }
 </style>

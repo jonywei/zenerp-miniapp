@@ -46,11 +46,19 @@
         },
 		onShow() { this.loadData(); },
 		methods: { 
-            switchTab(s: string) { this.status = s; this.loadData(); },
+            switchTab(s: string) { 
+				this.status = s;
+				this.products = []; // 🟢 视觉优化：切换时先清空，给用户加载感
+				this.loadData(); 
+			},
 			async loadData() { 
 				try { 
+					// 🟢 参数对齐：后端现在会读取 ?status=IN_STOCK 并过滤了
 					const res = await request({ url: `/api/products/?status=${this.status}&page_size=1000&t=${Date.now()}` });
-                    if(res) { let list = (res as any)['results'] || res; this.products = list as any[]; } 
+					if(res) { 
+						let list = (res as any)['results'] || res; 
+						this.products = list as any[];
+					} 
 				} catch(e) {} 
 			}, 
 			formatDate(str: any): string { if(!str) return ''; return String(str).substring(0, 10); }, 
@@ -78,11 +86,8 @@
     .specs { font-size: 22rpx; color: #999; margin-top: 6rpx; lines: 1; text-overflow: ellipsis; } 
     .date { font-size: 20rpx; color: #ccc; }
     
-    /* 🟢 颜色样式 */
     .status-tag { font-size: 20rpx; padding: 4rpx 10rpx; border-radius: 8rpx; color: #fff; font-weight: bold; }
-    .bg-green { background-color: #10b981; } 
-    .bg-yellow { background-color: #f59e0b; }
-    .bg-red { background-color: #ef4444; }
+    .bg-green { background-color: #10b981; } .bg-yellow { background-color: #f59e0b; } .bg-red { background-color: #ef4444; }
     
 	.empty { padding: 60rpx; align-items: center; } .empty-text { font-size: 24rpx; color: #ccc; }
 </style>

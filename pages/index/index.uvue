@@ -26,7 +26,7 @@
 		</view>
 
 		<view class="row-box">
-			<view class="row-item" @click="go('/pages/analysis/profit')"><text class="mini-icon yellow">📈</text><view class="text-group"><text class="row-title">利润报表</text><text class="row-desc">查看毛利</text></view></view>
+			<view class="row-item" @click="go('/pages/analysis/profit')"><text class="mini-icon yellow">📈</text><view class="text-group"><text class="row-title">利润战报</text><text class="row-desc">查看毛利</text></view></view>
 			<view class="row-item" @click="go('/pages/analysis/finance')"><text class="mini-icon red">💰</text><view class="text-group"><text class="row-title">欠款往来</text><text class="row-desc">应收应付</text></view></view>
 		</view>
 		
@@ -35,14 +35,14 @@
 			<view class="list-container">
 				<view v-for="(item, index) in (data['recent_list'] as any[])" :key="index" class="list-item">
 					<view class="list-left">
-						<text class="item-desc">{{ item['change_message'] || item['desc'] || item['action_flag'] || '业务操作' }}</text>
+						<text class="item-desc">{{ item['desc'] || '业务操作' }}</text>
 						<text class="item-time">{{ item['time'] }}</text>
 					</view>
 					<text v-if="hasAmount(item)" class="item-amount" :class="item['is_income'] ? 'text-red' : 'text-green'">
 						{{ item['is_income'] ? '+' : '-' }} {{ formatNum(item['amount']) }}
 					</text>
 					<view v-else class="tag-op">
-						<text class="tag-op-text">{{ item['action_type'] || '业务' }}</text>
+						<text class="tag-op-text">记录</text>
 					</view>
 				</view>
 				<view v-if="(data['recent_list'] as any[]).length == 0" class="empty-tip"><text class="empty-text">暂无动态</text></view>
@@ -50,6 +50,7 @@
 		</view>
 		<view class="bottom-placeholder"></view>
 	</scroll-view>
+	
 	<view class="bottom-bar">
 		<button class="btn btn-white" @click="go('/pages/entry/add')">📥 快速入库</button>
 		<button class="btn btn-blue" @click="go('/pages/sales/add')">💸 立即开单</button>
@@ -62,7 +63,7 @@
 		data() {
 			return {
 				userInitials: 'G',
-				data: { stock_value: 0, stock_count: 0, today_entry: 0, today_sale: 0, recent_list: [] } as any
+				data: { stock_value: 0, today_entry: 0, today_sale: 0, recent_list: [] } as any
 			}
 		},
 		onPullDownRefresh() { this.loadData(true); },
@@ -70,16 +71,19 @@
 		methods: {
 			updateUser() {
 				let name = uni.getStorageSync('username') as string;
-				if (name) { this.userInitials = name.substring(0, 2).toUpperCase(); }
+				if (name) { this.userInitials = name.substring(0, 1).toUpperCase(); }
 			},
 			async loadData(isPull: boolean) {
 				if(!isPull) uni.showNavigationBarLoading();
 				try {
 					const res = await request({ url: `/api/analysis/dashboard/?t=${Date.now()}` });
 					if(res != null) { 
-						this.data = res;
-						this.data['today_entry'] = Number(this.data['today_entry']) || 0;
-						this.data['today_sale'] = Number(this.data['today_sale']) || 0;
+						let d = res as any;
+						let cards = d['cards'] || {};
+						this.data['stock_value'] = cards['stock_val'] || 0;
+						this.data['today_entry'] = d['today_entry'] || 0;
+						this.data['today_sale'] = d['today_sale'] || 0; // 对应后端新加的字段
+						this.data['recent_list'] = d['recent_list'] || [];
 					}
 				} catch(e) { console.error(e); } 
 				finally {
@@ -89,64 +93,64 @@
 			},
 			hasAmount(item: any): boolean {
 				let amt = parseFloat(item['amount'] || '0');
+				// 🟢 宽松判断：只要绝对值大于0就显示（其实赊账3600元也算有金额）
 				return Math.abs(amt) > 0.01;
 			},
 			formatNum(num: any | null): string {
 				if (num == null) return "0.00";
 				let val = parseFloat(JSON.stringify(num));
-				return val.toFixed(2);
+				return val.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 			},
 			go(url: string) { uni.navigateTo({ url: url }); },
 			goProfile() { uni.navigateTo({ url: '/pages/profile/index' }); }
 		}
 	}
 </script>
-
 <style>
-	/* 样式保持不变，直接复用原样式 */
-	.page { background-color: #f8faff; flex: 1; padding: 0 30rpx; }
-	.nav-header { flex-direction: row; justify-content: space-between; align-items: center; margin-top: 20rpx; margin-bottom: 20rpx; }
-	.brand { font-size: 40rpx; font-weight: 900; color: #1e293b; letter-spacing: -1rpx; }
-	.avatar-circle { width: 70rpx; height: 70rpx; border-radius: 35rpx; background-color: #eff6ff; align-items: center; justify-content: center; }
-	.avatar-txt { color: #2563eb; font-weight: bold; font-size: 28rpx; }
-	.header-card { background-image: linear-gradient(135deg, #2563eb, #3b82f6); border-radius: 32rpx; padding: 40rpx; margin: 20rpx 0 30rpx 0; box-shadow: 0 12rpx 30rpx rgba(37, 99, 235, 0.25); }
-	.card-title { font-size: 24rpx; color: #e0e7ff; font-weight: bold; margin-bottom: 24rpx; }
-	.card-content { flex-direction: row; justify-content: space-between; align-items: flex-end; }
-	.left-part { flex-direction: row; align-items: baseline; }
-	.currency { font-size: 32rpx; color: #fff; margin-right: 8rpx; font-weight: bold; }
-	.amount { font-size: 64rpx; color: #fff; font-weight: 900; }
-	.right-part { flex-direction: row; }
-	.mini-box { background-color: rgba(255,255,255,0.12); border-radius: 16rpx; padding: 12rpx 20rpx; align-items: center; margin-left: 16rpx; min-width: 110rpx; }
-	.mini-label { font-size: 20rpx; color: #e0e7ff; margin-bottom: 6rpx; }
-	.mini-val { font-size: 32rpx; color: #fff; font-weight: bold; }
-	.grid-box { flex-direction: row; justify-content: space-between; margin-bottom: 30rpx; }
-	.grid-item { width: 160rpx; background-color: #fff; border-radius: 24rpx; padding: 24rpx 0; align-items: center; justify-content: center; box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.03); }
-	.icon-circle { width: 88rpx; height: 88rpx; border-radius: 44rpx; align-items: center; justify-content: center; margin-bottom: 12rpx; }
-	.purple { background-color: #f3e8ff; } .orange { background-color: #ffedd5; } .blue { background-color: #dbeafe; } .indigo { background-color: #e0e7ff; }
-	.emoji { font-size: 40rpx; }
-	.grid-text { font-size: 26rpx; font-weight: bold; color: #475569; }
-	.row-box { flex-direction: row; justify-content: space-between; margin-bottom: 40rpx; }
-	.row-item { width: 335rpx; background-color: #fff; padding: 30rpx 24rpx; border-radius: 24rpx; flex-direction: row; align-items: center; box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.03); }
-	.mini-icon { width: 80rpx; height: 80rpx; border-radius: 20rpx; text-align: center; line-height: 80rpx; font-size: 36rpx; margin-right: 20rpx; }
-	.yellow { background-color: #fef9c3; color: #ca8a04; } .red { background-color: #fee2e2; color: #dc2626; }
-	.text-group { flex-direction: column; }
-	.row-title { font-size: 30rpx; font-weight: bold; color: #333; margin-bottom: 4rpx; }
-	.row-desc { font-size: 22rpx; color: #94a3b8; }
-	.recent-box { margin-bottom: 30rpx; }
-	.section-title { font-size: 28rpx; font-weight: bold; color: #64748b; margin-left: 10rpx; margin-bottom: 20rpx; }
-	.list-container { background-color: #fff; border-radius: 24rpx; padding: 0 24rpx; box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.03); }
-	.list-item { flex-direction: row; justify-content: space-between; align-items: center; padding: 30rpx 0; border-bottom-width: 1px; border-bottom-color: #f1f5f9; border-bottom-style: solid; }
-	.list-left { flex-direction: column; width: 65%; }
-	.item-desc { font-size: 30rpx; font-weight: bold; color: #333; margin-bottom: 8rpx; lines: 1; text-overflow: ellipsis; }
-	.item-time { font-size: 22rpx; color: #94a3b8; }
-	.item-amount { font-size: 30rpx; font-weight: bold; font-family: monospace; }
-	.text-red { color: #ef4444; } .text-green { color: #10b981; }
-	.tag-op { background-color: #eff6ff; padding: 4rpx 12rpx; border-radius: 8rpx; }
-	.tag-op-text { font-size: 22rpx; color: #2563eb; font-weight: bold; }
-	.empty-tip { padding: 50rpx; align-items: center; } .empty-text { font-size: 26rpx; color: #cbd5e1; }
-	.bottom-placeholder { height: 160rpx; }
-	.bottom-bar { position: fixed; bottom: 40rpx; left: 30rpx; right: 30rpx; background-color: #fff; padding: 16rpx; border-radius: 30rpx; flex-direction: row; justify-content: space-between; box-shadow: 0 10rpx 40rpx rgba(0,0,0,0.1); }
-	.btn { flex: 1; height: 96rpx; line-height: 96rpx; text-align: center; border-radius: 20rpx; font-size: 32rpx; font-weight: bold; border-width: 0; margin: 0 10rpx; }
-	.btn-white { background-color: #f1f5f9; color: #475569; }
-	.btn-blue { background-color: #2563eb; color: #fff; box-shadow: 0 6rpx 16rpx rgba(37,99,235,0.3); }
+/* 保持原样式，无改动 */
+.page { background-color: #f8faff; flex: 1; padding: 0 30rpx; }
+.nav-header { flex-direction: row; justify-content: space-between; align-items: center; margin-top: 20rpx; margin-bottom: 20rpx; }
+.brand { font-size: 40rpx; font-weight: 900; color: #1e293b; letter-spacing: -1rpx; }
+.avatar-circle { width: 70rpx; height: 70rpx; border-radius: 35rpx; background-color: #eff6ff; align-items: center; justify-content: center; }
+.avatar-txt { color: #2563eb; font-weight: bold; font-size: 28rpx; }
+.header-card { background-image: linear-gradient(135deg, #2563eb, #3b82f6); border-radius: 32rpx; padding: 40rpx; margin: 20rpx 0 30rpx 0; box-shadow: 0 12rpx 30rpx rgba(37, 99, 235, 0.25); }
+.card-title { font-size: 24rpx; color: #e0e7ff; font-weight: bold; margin-bottom: 24rpx; }
+.card-content { flex-direction: row; justify-content: space-between; align-items: flex-end; }
+.left-part { flex-direction: row; align-items: baseline; }
+.currency { font-size: 32rpx; color: #fff; margin-right: 8rpx; font-weight: bold; }
+.amount { font-size: 64rpx; color: #fff; font-weight: 900; }
+.right-part { flex-direction: row; }
+.mini-box { background-color: rgba(255,255,255,0.12); border-radius: 16rpx; padding: 12rpx 20rpx; align-items: center; margin-left: 16rpx; min-width: 110rpx; }
+.mini-label { font-size: 20rpx; color: #e0e7ff; margin-bottom: 6rpx; }
+.mini-val { font-size: 32rpx; color: #fff; font-weight: bold; }
+.grid-box { flex-direction: row; justify-content: space-between; margin-bottom: 30rpx; }
+.grid-item { width: 160rpx; background-color: #fff; border-radius: 24rpx; padding: 24rpx 0; align-items: center; justify-content: center; box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.03); }
+.icon-circle { width: 88rpx; height: 88rpx; border-radius: 44rpx; align-items: center; justify-content: center; margin-bottom: 12rpx; }
+.purple { background-color: #f3e8ff; } .orange { background-color: #ffedd5; } .blue { background-color: #dbeafe; } .indigo { background-color: #e0e7ff; }
+.emoji { font-size: 40rpx; }
+.grid-text { font-size: 26rpx; font-weight: bold; color: #475569; }
+.row-box { flex-direction: row; justify-content: space-between; margin-bottom: 40rpx; }
+.row-item { width: 335rpx; background-color: #fff; padding: 30rpx 24rpx; border-radius: 24rpx; flex-direction: row; align-items: center; box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.03); }
+.mini-icon { width: 80rpx; height: 80rpx; border-radius: 20rpx; text-align: center; line-height: 80rpx; font-size: 36rpx; margin-right: 20rpx; }
+.yellow { background-color: #fef9c3; color: #ca8a04; } .red { background-color: #fee2e2; color: #dc2626; }
+.text-group { flex-direction: column; }
+.row-title { font-size: 30rpx; font-weight: bold; color: #333; margin-bottom: 4rpx; }
+.row-desc { font-size: 22rpx; color: #94a3b8; }
+.recent-box { margin-bottom: 30rpx; }
+.section-title { font-size: 28rpx; font-weight: bold; color: #64748b; margin-left: 10rpx; margin-bottom: 20rpx; }
+.list-container { background-color: #fff; border-radius: 24rpx; padding: 0 24rpx; box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.03); }
+.list-item { flex-direction: row; justify-content: space-between; align-items: center; padding: 30rpx 0; border-bottom-width: 1px; border-bottom-color: #f1f5f9; border-bottom-style: solid; }
+.list-left { flex-direction: column; width: 65%; }
+.item-desc { font-size: 30rpx; font-weight: bold; color: #333; margin-bottom: 8rpx; lines: 1; text-overflow: ellipsis; }
+.item-time { font-size: 22rpx; color: #94a3b8; }
+.item-amount { font-size: 30rpx; font-weight: bold; font-family: monospace; }
+.text-red { color: #ef4444; } .text-green { color: #10b981; }
+.tag-op { background-color: #eff6ff; padding: 4rpx 12rpx; border-radius: 8rpx; }
+.tag-op-text { font-size: 22rpx; color: #2563eb; font-weight: bold; }
+.empty-tip { padding: 50rpx; align-items: center; } .empty-text { font-size: 26rpx; color: #cbd5e1; }
+.bottom-placeholder { height: 160rpx; }
+.bottom-bar { position: fixed; bottom: 40rpx; left: 30rpx; right: 30rpx; background-color: #fff; padding: 16rpx; border-radius: 30rpx; flex-direction: row; justify-content: space-between; box-shadow: 0 10rpx 40rpx rgba(0,0,0,0.1); }
+.btn { flex: 1; height: 96rpx; line-height: 96rpx; text-align: center; border-radius: 20rpx; font-size: 32rpx; font-weight: bold; border-width: 0; margin: 0 10rpx; }
+.btn-white { background-color: #f1f5f9; color: #475569; }
+.btn-blue { background-color: #2563eb; color: #fff; box-shadow: 0 6rpx 16rpx rgba(37,99,235,0.3); }
 </style>
